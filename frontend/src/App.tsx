@@ -2,6 +2,8 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import LoginPage from "./pages/auth/LoginPage";
 import LabDashboardPage from "./pages/auth/lab/LabDashboardPage";
 import RequireAuth from "./routes/RequireAuth";
+import TelemetryPage from "./pages/auth/lab/TelemetryPage";
+import ForecastPage from "./pages/auth/lab/ForecastPage";
 
 export default function App() {
   return (
@@ -25,7 +27,7 @@ export default function App() {
           path="/lab/telemetry"
           element={
             <RequireAuth>
-              <div style={{ padding: 24 }}>Telemetry (coming next)</div>
+              <TelemetryPage />
             </RequireAuth>
           }
         />
@@ -34,7 +36,7 @@ export default function App() {
           path="/lab/forecast"
           element={
             <RequireAuth>
-              <div style={{ padding: 24 }}>Forecast (coming next)</div>
+              <ForecastPage />
             </RequireAuth>
           }
         />
