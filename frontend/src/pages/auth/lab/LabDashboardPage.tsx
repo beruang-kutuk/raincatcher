@@ -2,6 +2,7 @@ import { useState } from "react";
 import "../../../styles/dashboard.css";
 import tankImage from "../../../assets/images/msu-camera.jpeg";
 import Sidebar from "../../../components/layout/Sidebar";
+import ProfileMenu from "../../../components/layout/ProfileMenu";
 
 type StatCardData = {
     title: string;
@@ -164,7 +165,6 @@ function ForecastList({
 }
 
 export default function LabDashboardPage() {
-    const [profileOpen, setProfileOpen] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(true);
 
     return (
@@ -184,33 +184,7 @@ export default function LabDashboardPage() {
                                 </div>
 
                                 <div className="dashboard-actions">
-                                    <div className="profile-menu-wrapper">
-                                        <button
-                                            className="profile-avatar-btn"
-                                            type="button"
-                                            onClick={() => setProfileOpen((prev) => !prev)}
-                                        >
-                                            <img
-                                                src="https://i.pravatar.cc/100?img=12"
-                                                alt="User profile"
-                                                className="profile-avatar"
-                                            />
-                                            <span className={`profile-caret ${profileOpen ? "open" : ""}`}>
-                                                ⌄
-                                            </span>
-                                        </button>
-
-                                        {profileOpen && (
-                                            <div className="profile-dropdown">
-                                                <button className="profile-dropdown-item" type="button">
-                                                    Settings
-                                                </button>
-                                                <button className="profile-dropdown-item danger" type="button">
-                                                    Logout
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
+                                    <ProfileMenu />
                                 </div>
                             </div>
 

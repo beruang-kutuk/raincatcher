@@ -4,6 +4,11 @@ import LabDashboardPage from "./pages/auth/lab/LabDashboardPage";
 import RequireAuth from "./routes/RequireAuth";
 import TelemetryPage from "./pages/auth/lab/TelemetryPage";
 import ForecastPage from "./pages/auth/lab/ForecastPage";
+import AnomaliesPage from "./pages/auth/lab/AnomaliesPage";
+import TankImagesPage from "./pages/auth/lab/TankImagesPage";
+import SimulationPage from "./pages/auth/lab/SimulationPage";
+import ReportsPage from "./pages/auth/lab/ReportsPage";
+import SettingsPage from "./pages/auth/SettingsPage";
 
 export default function App() {
   return (
@@ -42,10 +47,28 @@ export default function App() {
         />
 
         <Route
-          path="/lab/what-if"
+          path="/lab/anomalies"
           element={
             <RequireAuth>
-              <div style={{ padding: 24 }}>What-if Simulation (coming next)</div>
+              <AnomaliesPage />
+            </RequireAuth>
+          }
+        />
+
+        <Route
+          path="/lab/images"
+          element={
+            <RequireAuth>
+              <TankImagesPage />
+            </RequireAuth>
+          }
+        />
+
+        <Route
+          path="/lab/simulation"
+          element={
+            <RequireAuth>
+              <SimulationPage />
             </RequireAuth>
           }
         />
@@ -54,16 +77,16 @@ export default function App() {
           path="/lab/reports"
           element={
             <RequireAuth>
-              <div style={{ padding: 24 }}>Reports (coming next)</div>
+              <ReportsPage />
             </RequireAuth>
           }
         />
 
         <Route
-          path="/lab/settings"
+          path="/settings"
           element={
             <RequireAuth>
-              <div style={{ padding: 24 }}>Settings (coming next)</div>
+              <SettingsPage />
             </RequireAuth>
           }
         />

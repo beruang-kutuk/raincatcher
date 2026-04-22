@@ -2,6 +2,7 @@ import { useState } from "react";
 import "../../../styles/dashboard.css";
 import "../../../styles/forecast.css";
 import Sidebar from "../../../components/layout/Sidebar";
+import ProfileMenu from "../../../components/layout/ProfileMenu";
 
 type ForecastMetric = {
     label: string;
@@ -248,7 +249,6 @@ function RainfallForecastChart({
 }
 
 export default function ForecastPage() {
-    const [profileOpen, setProfileOpen] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(true);
 
     return (
@@ -275,32 +275,8 @@ export default function ForecastPage() {
                                     All Sensors
                                 </button>
 
-                                <div className="profile-menu-wrapper">
-                                    <button
-                                        className="profile-avatar-btn"
-                                        type="button"
-                                        onClick={() => setProfileOpen((prev) => !prev)}
-                                    >
-                                        <img
-                                            src="https://i.pravatar.cc/100?img=12"
-                                            alt="User profile"
-                                            className="profile-avatar"
-                                        />
-                                        <span className={`profile-caret ${profileOpen ? "open" : ""}`}>
-                                            ⌄
-                                        </span>
-                                    </button>
-
-                                    {profileOpen && (
-                                        <div className="profile-dropdown">
-                                            <button className="profile-dropdown-item" type="button">
-                                                Settings
-                                            </button>
-                                            <button className="profile-dropdown-item danger" type="button">
-                                                Logout
-                                            </button>
-                                        </div>
-                                    )}
+                                <div className="dashboard-actions">
+                                    <ProfileMenu />
                                 </div>
                             </div>
                         </div>
