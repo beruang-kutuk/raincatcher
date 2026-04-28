@@ -100,7 +100,7 @@
 /* FILTERS */
 .anomalies-filters-grid {
     display: grid;
-    grid-template-columns: 1.4fr 1fr 1fr 1fr auto;
+    grid-template-columns: 1.4fr 1fr 1fr auto;
     gap: 16px;
     align-items: end;
 }
@@ -228,6 +228,7 @@
 .anomalies-actions {
     display: flex;
     gap: 8px;
+    align-items: center;
 }
 
 .anomalies-icon-btn {
@@ -240,6 +241,18 @@
     color: var(--text);
     font-size: 13px;
     font-weight: 600;
+    cursor: pointer;
+}
+
+.anomalies-sparkle-btn {
+    width: 38px;
+    height: 36px;
+    border: 1px solid rgba(109, 76, 255, 0.24);
+    border-radius: 10px;
+    background: rgba(109, 76, 255, 0.08);
+    color: var(--purple);
+    font-size: 18px;
+    font-weight: 800;
     cursor: pointer;
 }
 
@@ -283,6 +296,175 @@
     border: none;
 }
 
+/* POPUP */
+.anomalies-popup-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(15, 23, 42, 0.38);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.anomalies-popup-card {
+    width: min(620px, 100%);
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 24px;
+    box-shadow: 0 30px 90px rgba(2, 6, 23, 0.24);
+}
+
+.anomalies-popup-card.ai {
+    width: min(680px, 100%);
+}
+
+.anomalies-popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.anomalies-popup-header h2 {
+    margin: 0 0 6px;
+    font-size: 22px;
+    font-weight: 800;
+}
+
+.anomalies-popup-header p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 14px;
+}
+
+.anomalies-popup-close {
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--text);
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.anomalies-popup-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 18px;
+}
+
+.anomalies-popup-grid div {
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: #fafbff;
+}
+
+.anomalies-popup-grid span {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.anomalies-popup-grid strong {
+    font-size: 15px;
+    color: var(--text);
+    text-transform: capitalize;
+}
+
+.anomalies-popup-section {
+    margin-bottom: 18px;
+}
+
+.anomalies-popup-section h3 {
+    margin: 0 0 8px;
+    font-size: 16px;
+    font-weight: 800;
+}
+
+.anomalies-popup-section p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.6;
+}
+
+.anomalies-popup-note {
+    margin-bottom: 20px;
+    padding: 14px 16px;
+    border-radius: 16px;
+    background: rgba(109, 76, 255, 0.08);
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+.anomalies-popup-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.anomalies-resolve-btn {
+    height: 44px;
+    padding: 0 18px;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(90deg, var(--purple), var(--purple2));
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.anomalies-resolve-btn:disabled {
+    background: #e5e7eb;
+    color: var(--muted);
+    cursor: not-allowed;
+}
+
+/* AI CHAT */
+.anomalies-ai-chat {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-bottom: 20px;
+}
+
+.anomalies-ai-message {
+    padding: 16px;
+    border-radius: 18px;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.anomalies-ai-message strong {
+    display: block;
+    margin-bottom: 6px;
+}
+
+.anomalies-ai-message p {
+    margin: 0;
+}
+
+.anomalies-ai-message.assistant {
+    background: rgba(109, 76, 255, 0.08);
+    color: var(--text);
+}
+
+.anomalies-ai-message.case {
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    color: var(--muted);
+}
+
 /* RESPONSIVE */
 @media (max-width: 1200px) {
     .anomalies-summary-grid {
@@ -319,5 +501,15 @@
     .anomalies-table-footer {
         flex-direction: column;
         align-items: flex-start;
+    }
+}
+
+@media (max-width: 600px) {
+    .anomalies-popup-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .anomalies-popup-card {
+        padding: 18px;
     }
 }

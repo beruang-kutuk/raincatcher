@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import "../../../styles/dashboard.css";
 import "../../../styles/reports.css";
 import Sidebar from "../../../components/layout/Sidebar";
 import ProfileMenu from "../../../components/layout/ProfileMenu";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
     FileText,
     PieChart,
@@ -12,6 +14,10 @@ import {
     Download,
     ChevronRight,
     MoreVertical,
+    BarChart3,
+    Sparkles,
+    Eye,
+    X,
 } from "lucide-react";
 
 type SummaryCard = {
@@ -40,6 +46,14 @@ type QuickReport = {
     tone: "blue" | "red" | "orange" | "green";
 };
 
+type BenchmarkItem = {
+    label: string;
+    predicted: string;
+    actual: string;
+    deviation: string;
+    status: "good" | "moderate" | "attention";
+};
+
 const summaryCards: SummaryCard[] = [
     {
         label: "Total Reports",
@@ -49,9 +63,9 @@ const summaryCards: SummaryCard[] = [
         tone: "purple",
     },
     {
-        label: "Data Coverage",
-        value: "98%",
-        meta: "Excellent",
+        label: "Forecast Accuracy",
+        value: "91%",
+        meta: "Good benchmark score",
         icon: <PieChart size={22} />,
         tone: "blue",
     },
@@ -74,7 +88,7 @@ const summaryCards: SummaryCard[] = [
 const reportRows: ReportRow[] = [
     {
         id: 1,
-        name: "Weekly Summary Report",
+        name: "Weekly Monitoring Report",
         type: "Summary",
         tanks: "All Tanks",
         range: "21 Apr 2026 - 28 Apr 2026",
@@ -83,8 +97,8 @@ const reportRows: ReportRow[] = [
     },
     {
         id: 2,
-        name: "Performance Report - Tank A",
-        type: "Performance",
+        name: "Performance Benchmark - Tank A",
+        type: "Benchmark",
         tanks: "Tank A",
         range: "14 Apr 2026 - 20 Apr 2026",
         generatedOn: "21 Apr 2026, 09:15 AM",
@@ -101,7 +115,7 @@ const reportRows: ReportRow[] = [
     },
     {
         id: 4,
-        name: "Anomaly Report",
+        name: "Anomaly Resolution Report",
         type: "Anomalies",
         tanks: "All Tanks",
         range: "21 Apr 2026 - 28 Apr 2026",
@@ -110,7 +124,7 @@ const reportRows: ReportRow[] = [
     },
     {
         id: 5,
-        name: "Rainfall Report",
+        name: "Rainfall Capture Report",
         type: "Rainfall",
         tanks: "All Tanks",
         range: "21 Apr 2026 - 28 Apr 2026",
@@ -129,16 +143,16 @@ const quickReports: QuickReport[] = [
     },
     {
         id: 2,
-        title: "Weekly Summary",
-        description: "Last 7 days performance",
+        title: "Weekly Monitoring",
+        description: "Storage, rainfall, anomaly summary",
         icon: <FileText size={18} />,
         tone: "red",
     },
     {
         id: 3,
-        title: "Monthly Summary",
-        description: "Monthly performance overview",
-        icon: <FileText size={18} />,
+        title: "Benchmark Report",
+        description: "Forecast vs actual performance",
+        icon: <BarChart3 size={18} />,
         tone: "orange",
     },
     {
@@ -148,6 +162,39 @@ const quickReports: QuickReport[] = [
         icon: <FileText size={18} />,
         tone: "green",
     },
+];
+
+const benchmarkItems: BenchmarkItem[] = [
+    {
+        label: "Storage Forecast",
+        predicted: "78%",
+        actual: "76%",
+        deviation: "2%",
+        status: "good",
+    },
+    {
+        label: "Rainfall Capture",
+        predicted: "162 mm",
+        actual: "156 mm",
+        deviation: "3.7%",
+        status: "good",
+    },
+    {
+        label: "Low-Water Period",
+        predicted: "1 day",
+        actual: "2 days",
+        deviation: "1 day",
+        status: "moderate",
+    },
+];
+
+const reportSections = [
+    "Executive Summary",
+    "Rainfall",
+    "Storage",
+    "Forecast vs Actual",
+    "Anomalies",
+    "Recommendations",
 ];
 
 const storageLine = [74, 79, 78, 85, 80, 73, 73, 75];
@@ -166,6 +213,12 @@ function SummaryMetricCard({ label, value, meta, icon, tone }: SummaryCard) {
             </div>
         </div>
     );
+}
+
+function getBenchmarkClass(status: BenchmarkItem["status"]) {
+    if (status === "attention") return "reports-benchmark-attention";
+    if (status === "moderate") return "reports-benchmark-moderate";
+    return "reports-benchmark-good";
 }
 
 function ReportsOverviewChart() {
@@ -194,7 +247,6 @@ function ReportsOverviewChart() {
     });
 
     const polylinePoints = linePoints.map((p) => `${p.x},${p.y}`).join(" ");
-
     const barWidth = 14;
 
     return (
@@ -273,6 +325,124 @@ function ReportsOverviewChart() {
 
 export default function ReportsPage() {
     const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [previewOpen, setPreviewOpen] = useState(false);
+    const [reportType, setReportType] = useState("Weekly Monitoring Report");
+    const [selectedTank, setSelectedTank] = useState("All Tanks");
+
+    const selectedSections = useMemo(() => reportSections, []);
+
+    function generatePdfReport() {
+        const doc = new jsPDF("p", "mm", "a4");
+        const pageWidth = doc.internal.pageSize.getWidth();
+
+        doc.setFillColor(109, 76, 255);
+        doc.rect(0, 0, pageWidth, 36, "F");
+
+        doc.setTextColor(255, 255, 255);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(20);
+        doc.text("Raincatcher Monitoring Report", 14, 16);
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.text("Rainwater Harvesting Monitoring and Benchmarking", 14, 25);
+
+        doc.setTextColor(11, 18, 32);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(13);
+        doc.text("Report Details", 14, 48);
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.text(`Report Type: ${reportType}`, 14, 57);
+        doc.text(`Tank/Site: ${selectedTank}`, 14, 64);
+        doc.text("Date Range: 21 Apr 2026 - 28 Apr 2026", 14, 71);
+        doc.text("Generated On: 28 Apr 2026, 10:30 AM", 14, 78);
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(13);
+        doc.text("Executive Summary", 14, 93);
+
+        autoTable(doc, {
+            startY: 99,
+            head: [["Metric", "Value", "Remarks"]],
+            body: [
+                ["Average Storage Level", "76%", "Healthy storage level"],
+                ["Total Rainfall", "156 mm", "+18 mm compared to previous period"],
+                ["Forecast Accuracy", "91%", "Good benchmark score"],
+                ["Anomalies Detected", "3 cases", "Requires monitoring"],
+            ],
+            theme: "grid",
+            headStyles: {
+                fillColor: [109, 76, 255],
+                textColor: [255, 255, 255],
+            },
+            styles: {
+                fontSize: 9,
+                cellPadding: 3,
+            },
+        });
+
+        const firstTableEndY = (doc as any).lastAutoTable.finalY + 12;
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(13);
+        doc.text("Forecast vs Actual Benchmark", 14, firstTableEndY);
+
+        autoTable(doc, {
+            startY: firstTableEndY + 6,
+            head: [["Benchmark Area", "Predicted", "Actual", "Deviation", "Status"]],
+            body: benchmarkItems.map((item) => [
+                item.label,
+                item.predicted,
+                item.actual,
+                item.deviation,
+                item.status,
+            ]),
+            theme: "grid",
+            headStyles: {
+                fillColor: [109, 76, 255],
+                textColor: [255, 255, 255],
+            },
+            styles: {
+                fontSize: 9,
+                cellPadding: 3,
+            },
+        });
+
+        const secondTableEndY = (doc as any).lastAutoTable.finalY + 12;
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(13);
+        doc.text("Included Report Sections", 14, secondTableEndY);
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.text(selectedSections.join(", "), 14, secondTableEndY + 8, {
+            maxWidth: 180,
+        });
+
+        const recommendationY = secondTableEndY + 24;
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(13);
+        doc.text("Recommendation Summary", 14, recommendationY);
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+
+        const recommendationText =
+            "Storage performance remains healthy. Continue monitoring turbidity, inspect abnormal water level drops, and compare forecast values with observed storage behaviour to improve future benchmarking.";
+
+        const wrappedRecommendation = doc.splitTextToSize(recommendationText, 180);
+        doc.text(wrappedRecommendation, 14, recommendationY + 8);
+
+        doc.setTextColor(107, 114, 128);
+        doc.setFontSize(9);
+        doc.text("Generated by Raincatcher Lab Panel", 14, 286);
+
+        doc.save("raincatcher-monitoring-report.pdf");
+    }
 
     return (
         <div className={`app-shell-fixed ${sidebarOpen ? "sidebar-expanded" : "sidebar-collapsed"}`}>
@@ -310,11 +480,53 @@ export default function ReportsPage() {
                             ))}
                         </div>
 
+                        <section className="reports-benchmark-panel">
+                            <div className="reports-benchmark-left">
+                                <div className="reports-benchmark-icon">
+                                    <Sparkles size={22} />
+                                </div>
+
+                                <div>
+                                    <h2>Forecast vs Actual Benchmark</h2>
+                                    <p>
+                                        Compare predicted storage and rainfall values with observed mock readings
+                                        to evaluate rainwater harvesting performance.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="reports-benchmark-grid">
+                                {benchmarkItems.map((item) => (
+                                    <div key={item.label} className="reports-benchmark-card">
+                                        <div className="reports-benchmark-card-top">
+                                            <h3>{item.label}</h3>
+                                            <span className={getBenchmarkClass(item.status)}>{item.status}</span>
+                                        </div>
+
+                                        <div className="reports-benchmark-values">
+                                            <div>
+                                                <span>Predicted</span>
+                                                <strong>{item.predicted}</strong>
+                                            </div>
+                                            <div>
+                                                <span>Actual</span>
+                                                <strong>{item.actual}</strong>
+                                            </div>
+                                            <div>
+                                                <span>Deviation</span>
+                                                <strong>{item.deviation}</strong>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+
                         <div className="reports-main-grid">
                             <div className="reports-left-column">
                                 <section className="reports-panel">
                                     <div className="reports-panel-header reports-panel-header-split">
-                                        <h2>Storage Overview</h2>
+                                        <h2>Storage & Rainfall Overview</h2>
 
                                         <button className="reports-filter-btn small" type="button">
                                             Daily
@@ -358,9 +570,24 @@ export default function ReportsPage() {
                                                         <td>{row.size}</td>
                                                         <td>
                                                             <div className="reports-actions">
-                                                                <button type="button" className="reports-icon-btn">
+                                                                <button
+                                                                    type="button"
+                                                                    className="reports-icon-btn"
+                                                                    onClick={() => setPreviewOpen(true)}
+                                                                    title="Preview"
+                                                                >
+                                                                    <Eye size={16} />
+                                                                </button>
+
+                                                                <button
+                                                                    type="button"
+                                                                    className="reports-icon-btn"
+                                                                    title="Download"
+                                                                    onClick={generatePdfReport}
+                                                                >
                                                                     <Download size={16} />
                                                                 </button>
+
                                                                 <button type="button" className="reports-icon-btn">
                                                                     <MoreVertical size={16} />
                                                                 </button>
@@ -394,17 +621,25 @@ export default function ReportsPage() {
 
                                     <div className="reports-form-group">
                                         <label>Report Type</label>
-                                        <select className="reports-select">
-                                            <option>Summary Report</option>
-                                            <option>Performance Report</option>
-                                            <option>Monthly Report</option>
-                                            <option>Anomaly Report</option>
+                                        <select
+                                            className="reports-select"
+                                            value={reportType}
+                                            onChange={(e) => setReportType(e.target.value)}
+                                        >
+                                            <option>Weekly Monitoring Report</option>
+                                            <option>Performance Benchmark Report</option>
+                                            <option>Monthly Summary Report</option>
+                                            <option>Anomaly Resolution Report</option>
                                         </select>
                                     </div>
 
                                     <div className="reports-form-group">
                                         <label>Select Tanks</label>
-                                        <select className="reports-select">
+                                        <select
+                                            className="reports-select"
+                                            value={selectedTank}
+                                            onChange={(e) => setSelectedTank(e.target.value)}
+                                        >
                                             <option>All Tanks</option>
                                             <option>Tank A</option>
                                             <option>Tank B</option>
@@ -430,7 +665,7 @@ export default function ReportsPage() {
                                         <label>Include Sections</label>
 
                                         <div className="reports-checkbox-grid">
-                                            {["Overview", "Rainfall", "Storage", "Usage", "Anomalies"].map((item) => (
+                                            {reportSections.map((item) => (
                                                 <label key={item} className="reports-checkbox-item">
                                                     <input type="checkbox" defaultChecked />
                                                     <span>{item}</span>
@@ -439,10 +674,25 @@ export default function ReportsPage() {
                                         </div>
                                     </div>
 
-                                    <button className="reports-generate-btn" type="button">
-                                        <Download size={16} />
-                                        <span>Generate Report</span>
-                                    </button>
+                                    <div className="reports-generate-actions">
+                                        <button
+                                            className="reports-preview-btn"
+                                            type="button"
+                                            onClick={() => setPreviewOpen(true)}
+                                        >
+                                            <Eye size={16} />
+                                            <span>Preview</span>
+                                        </button>
+
+                                        <button
+                                            className="reports-generate-btn"
+                                            type="button"
+                                            onClick={generatePdfReport}
+                                        >
+                                            <Download size={16} />
+                                            <span>Generate PDF</span>
+                                        </button>
+                                    </div>
                                 </section>
 
                                 <section className="reports-panel">
@@ -472,6 +722,93 @@ export default function ReportsPage() {
                     </div>
                 </main>
             </div>
+
+            {previewOpen && (
+                <div className="reports-preview-backdrop">
+                    <div className="reports-preview-modal">
+                        <div className="reports-preview-header">
+                            <div>
+                                <h2>PDF Report Preview</h2>
+                                <p>{reportType} · {selectedTank}</p>
+                            </div>
+
+                            <button
+                                type="button"
+                                className="reports-preview-close"
+                                onClick={() => setPreviewOpen(false)}
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <div className="reports-pdf-preview">
+                            <div className="reports-pdf-cover">
+                                <h1>Raincatcher Monitoring Report</h1>
+                                <p>21 Apr 2026 - 28 Apr 2026</p>
+                                <span>{selectedTank}</span>
+                            </div>
+
+                            <div className="reports-pdf-section">
+                                <h3>Executive Summary</h3>
+                                <div className="reports-pdf-metrics">
+                                    <div>
+                                        <span>Average Storage</span>
+                                        <strong>76%</strong>
+                                    </div>
+                                    <div>
+                                        <span>Total Rainfall</span>
+                                        <strong>156 mm</strong>
+                                    </div>
+                                    <div>
+                                        <span>Forecast Accuracy</span>
+                                        <strong>91%</strong>
+                                    </div>
+                                    <div>
+                                        <span>Anomalies</span>
+                                        <strong>3 cases</strong>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="reports-pdf-section">
+                                <h3>Included Sections</h3>
+                                <div className="reports-pdf-tags">
+                                    {selectedSections.map((section) => (
+                                        <span key={section}>{section}</span>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="reports-pdf-section">
+                                <h3>Recommendation Summary</h3>
+                                <p>
+                                    Storage performance remains healthy. Continue monitoring turbidity and compare
+                                    forecast values with observed storage behaviour for improved benchmarking.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="reports-preview-actions">
+                            <button
+                                type="button"
+                                className="reports-preview-secondary"
+                                onClick={() => setPreviewOpen(false)}
+                            >
+                                Close
+                            </button>
+
+                            <button
+                                type="button"
+                                className="reports-generate-btn"
+                                onClick={generatePdfReport}
+                            >
+                                <Download size={16} />
+                                <span>Download PDF</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

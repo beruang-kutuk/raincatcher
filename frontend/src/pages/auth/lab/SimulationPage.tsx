@@ -23,30 +23,10 @@ type ScenarioRow = {
 };
 
 const summaryCards: SummaryCard[] = [
-    {
-        label: "Final Storage Level",
-        value: "82%",
-        subtext: "≈ 82 m³",
-        status: "good",
-    },
-    {
-        label: "Lowest Level Reached",
-        value: "62%",
-        subtext: "≈ 62 m³",
-        status: "good",
-    },
-    {
-        label: "Overflow Risk",
-        value: "Low",
-        subtext: "12% chance",
-        status: "warning",
-    },
-    {
-        label: "Shortage Risk",
-        value: "Low",
-        subtext: "8% chance",
-        status: "low",
-    },
+    { label: "Final Storage Level", value: "82%", subtext: "≈ 82 m³", status: "good" },
+    { label: "Lowest Level Reached", value: "62%", subtext: "≈ 62 m³", status: "good" },
+    { label: "Overflow Risk", value: "Low", subtext: "12% chance", status: "warning" },
+    { label: "Shortage Risk", value: "Low", subtext: "8% chance", status: "low" },
 ];
 
 const scenarioRows: ScenarioRow[] = [
@@ -135,7 +115,7 @@ function StorageProjectionChart() {
             paddingBottom -
             ((value - min) / (max - min)) * (height - paddingTop - paddingBottom);
 
-        return { x, y, value };
+        return { x, y };
     });
 
     const linePoints = points.map((p) => `${p.x},${p.y}`).join(" ");
@@ -211,6 +191,27 @@ export default function SimulationPage() {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [startingLevel, setStartingLevel] = useState(78);
     const [efficiency, setEfficiency] = useState(88);
+    const [weekModalOpen, setWeekModalOpen] = useState(false);
+    const [selectedWeek, setSelectedWeek] = useState("21 Apr 2026 - 28 Apr 2026");
+    const [customStartDate, setCustomStartDate] = useState("");
+    const [customEndDate, setCustomEndDate] = useState("");
+
+    const weekOptions = [
+        "21 Apr 2026 - 28 Apr 2026",
+        "29 Apr 2026 - 05 May 2026",
+        "06 May 2026 - 13 May 2026",
+        "14 May 2026 - 21 May 2026",
+    ];
+
+    function applyCustomRange() {
+        if (customStartDate && customEndDate) {
+            setSelectedWeek(`${customStartDate} - ${customEndDate}`);
+        } else {
+            setSelectedWeek("Custom week range");
+        }
+
+        setWeekModalOpen(false);
+    }
 
     return (
         <div className={`app-shell-fixed ${sidebarOpen ? "sidebar-expanded" : "sidebar-collapsed"}`}>
@@ -228,8 +229,13 @@ export default function SimulationPage() {
                             </div>
 
                             <div className="simulation-topbar-right">
-                                <button className="simulation-filter-btn" type="button">
-                                    21 Apr 2026 - 28 Apr 2026
+                                <button
+                                    className="simulation-filter-btn simulation-week-btn"
+                                    type="button"
+                                    onClick={() => setWeekModalOpen(true)}
+                                >
+                                    {selectedWeek}
+                                    <span>⌄</span>
                                 </button>
 
                                 <button className="simulation-filter-btn" type="button">
@@ -415,6 +421,69 @@ export default function SimulationPage() {
                     </div>
                 </main>
             </div>
+
+            {weekModalOpen && (
+                <div className="simulation-week-modal-backdrop">
+                    <div className="simulation-week-modal">
+                        <div className="simulation-week-modal-header">
+                            <div>
+                                <h2>Select Simulation Week</h2>
+                                <p>Choose the forecast range for this simulation.</p>
+                            </div>
+
+                            <button
+                                type="button"
+                                className="simulation-week-modal-close"
+                                onClick={() => setWeekModalOpen(false)}
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <div className="simulation-week-options">
+                            {weekOptions.map((week) => (
+                                <button
+                                    key={week}
+                                    type="button"
+                                    className={`simulation-week-option ${selectedWeek === week ? "active" : ""}`}
+                                    onClick={() => {
+                                        setSelectedWeek(week);
+                                        setWeekModalOpen(false);
+                                    }}
+                                >
+                                    <strong>{week}</strong>
+                                    <span>7-day simulation range</span>
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="simulation-custom-range">
+                            <label>Custom Range</label>
+
+                            <div className="simulation-custom-range-inputs">
+                                <input
+                                    type="date"
+                                    value={customStartDate}
+                                    onChange={(e) => setCustomStartDate(e.target.value)}
+                                />
+                                <input
+                                    type="date"
+                                    value={customEndDate}
+                                    onChange={(e) => setCustomEndDate(e.target.value)}
+                                />
+                            </div>
+
+                            <button
+                                type="button"
+                                className="simulation-apply-week-btn"
+                                onClick={applyCustomRange}
+                            >
+                                Apply Range
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

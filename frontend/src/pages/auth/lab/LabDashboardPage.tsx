@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Bell, CloudRain, Droplets, ThermometerSun, Wind } from "lucide-react";
 import "../../../styles/dashboard.css";
 import tankImage from "../../../assets/images/msu-camera.jpeg";
 import Sidebar from "../../../components/layout/Sidebar";
@@ -18,26 +19,42 @@ type AnomalyItem = {
     time: string;
 };
 
+type NotificationItem = {
+    id: number;
+    title: string;
+    message: string;
+    time: string;
+    severity: "low" | "medium" | "high";
+};
+
 const stats: StatCardData[] = [
+    { title: "Last Telemetry", value: "10 mins ago", status: "normal" },
+    { title: "Turbidity", value: "4.2 NTU", status: "normal" },
+    { title: "Cabinet Temp", value: "29°C", status: "normal" },
+    { title: "Humidity", value: "71%", status: "normal" },
+];
+
+const notifications: NotificationItem[] = [
     {
-        title: "Last Telemetry",
-        value: "10 mins ago",
-        status: "normal",
+        id: 1,
+        title: "Water Level Drop",
+        message: "Tank A dropped faster than expected.",
+        time: "10:42 AM",
+        severity: "high",
     },
     {
-        title: "Turbidity",
-        value: "4.2 NTU",
-        status: "normal",
+        id: 2,
+        title: "Turbidity Spike",
+        message: "Tank B exceeded normal turbidity threshold.",
+        time: "09:15 AM",
+        severity: "medium",
     },
     {
-        title: "Cabinet Temp",
-        value: "29°C",
-        status: "normal",
-    },
-    {
-        title: "Humidity",
-        value: "71%",
-        status: "normal",
+        id: 3,
+        title: "Telemetry Delay",
+        message: "RC-01 reported a delayed reading.",
+        time: "08:30 AM",
+        severity: "low",
     },
 ];
 
@@ -64,24 +81,24 @@ const forecastData = [
 const anomalies: AnomalyItem[] = [
     {
         id: 1,
-        title: "Stale Data Warning",
-        message: "No telemetry gap detected, system is healthy.",
-        severity: "low",
-        time: "Today, 9:20 AM",
+        title: "Water Level Drop",
+        message: "Tank A dropped faster than expected.",
+        severity: "high",
+        time: "Today, 10:42 AM",
     },
     {
         id: 2,
-        title: "Turbidity Check",
-        message: "Latest turbidity reading is normal.",
-        severity: "low",
-        time: "Today, 9:10 AM",
+        title: "Turbidity Spike",
+        message: "Tank B exceeded normal turbidity threshold.",
+        severity: "medium",
+        time: "Today, 9:15 AM",
     },
     {
         id: 3,
-        title: "Forecast Status",
-        message: "30-day storage forecast generated successfully.",
-        severity: "medium",
-        time: "Today, 8:00 AM",
+        title: "Telemetry Delay",
+        message: "RC-01 reported a delayed reading.",
+        severity: "low",
+        time: "Today, 8:30 AM",
     },
 ];
 
@@ -96,11 +113,7 @@ function getSeverityClass(severity: "low" | "medium" | "high") {
     }
 }
 
-function StatCard({
-    title,
-    value,
-    status = "normal",
-}: StatCardData) {
+function StatCard({ title, value, status = "normal" }: StatCardData) {
     return (
         <div className="stat-card">
             <div className="stat-card-header">
@@ -116,11 +129,7 @@ function StatCard({
     );
 }
 
-function MiniBarChart({
-    data,
-}: {
-    data: Array<{ day: string; rain: number }>;
-}) {
+function MiniBarChart({ data }: { data: Array<{ day: string; rain: number }> }) {
     const max = Math.max(...data.map((item) => item.rain));
 
     return (
@@ -141,11 +150,7 @@ function MiniBarChart({
     );
 }
 
-function ForecastList({
-    data,
-}: {
-    data: Array<{ day: string; storage: number }>;
-}) {
+function ForecastList({ data }: { data: Array<{ day: string; storage: number }> }) {
     return (
         <div className="forecast-list">
             {data.map((item) => (
@@ -166,6 +171,7 @@ function ForecastList({
 
 export default function LabDashboardPage() {
     const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [notificationOpen, setNotificationOpen] = useState(false);
 
     return (
         <div className={`app-shell-fixed ${sidebarOpen ? "sidebar-expanded" : "sidebar-collapsed"}`}>
@@ -184,7 +190,81 @@ export default function LabDashboardPage() {
                                 </div>
 
                                 <div className="dashboard-actions">
+                                    <div className="notification-wrapper">
+                                        <button
+                                            type="button"
+                                            className="notification-btn"
+                                            onClick={() => setNotificationOpen((prev) => !prev)}
+                                            aria-label="View anomaly alerts"
+                                        >
+                                            <Bell size={18} />
+                                            <span className="notification-dot">{notifications.length}</span>
+                                        </button>
+
+                                        {notificationOpen && (
+                                            <div className="notification-dropdown">
+                                                <div className="notification-header">
+                                                    <h3>Anomaly Alerts</h3>
+                                                    <span>{notifications.length} new</span>
+                                                </div>
+
+                                                <div className="notification-list">
+                                                    {notifications.map((item) => (
+                                                        <div key={item.id} className="notification-item">
+                                                            <div className={`notification-alert-dot ${getSeverityClass(item.severity)}`} />
+                                                            <div>
+                                                                <div className="notification-item-top">
+                                                                    <strong>{item.title}</strong>
+                                                                    <span>{item.time}</span>
+                                                                </div>
+                                                                <p>{item.message}</p>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+
+                                                <button type="button" className="notification-view-all">
+                                                    View all anomalies
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+
                                     <ProfileMenu />
+                                </div>
+                            </div>
+
+                            <div className="weather-card">
+                                <div className="weather-main">
+                                    <div className="weather-icon">
+                                        <CloudRain size={26} />
+                                    </div>
+
+                                    <div>
+                                        <p className="weather-label">Today’s Weather</p>
+                                        <h2>29°C · Light Rain</h2>
+                                        <span>Rainfall expected around MSU area</span>
+                                    </div>
+                                </div>
+
+                                <div className="weather-stats">
+                                    <div>
+                                        <Droplets size={18} />
+                                        <span>Rainfall</span>
+                                        <strong>12.4 mm</strong>
+                                    </div>
+
+                                    <div>
+                                        <Wind size={18} />
+                                        <span>Wind</span>
+                                        <strong>8 km/h</strong>
+                                    </div>
+
+                                    <div>
+                                        <ThermometerSun size={18} />
+                                        <span>Humidity</span>
+                                        <strong>71%</strong>
+                                    </div>
                                 </div>
                             </div>
 
