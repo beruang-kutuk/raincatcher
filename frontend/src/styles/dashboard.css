@@ -8,6 +8,40 @@
     --purple2: #8b5cf6;
     --sidebar-expanded: 250px;
     --sidebar-collapsed: 88px;
+
+    --card: #ffffff;
+    --card-soft: #fafbff;
+    --input: #ffffff;
+    --dropdown: #ffffff;
+    --progress-bg: #e5e7eb;
+
+    --green-soft: #dcfce7;
+    --green-text: #166534;
+    --yellow-soft: #fef3c7;
+    --yellow-text: #92400e;
+    --red-soft: #fee2e2;
+    --red-text: #991b1b;
+}
+
+body.dark-mode {
+    --bg: #0f172a;
+    --text: #f8fafc;
+    --muted: #94a3b8;
+    --border: rgba(255, 255, 255, 0.12);
+    --shadow: 0 12px 30px rgba(0, 0, 0, 0.24);
+
+    --card: #1e293b;
+    --card-soft: #172033;
+    --input: #1e293b;
+    --dropdown: #1e293b;
+    --progress-bg: #334155;
+
+    --green-soft: rgba(34, 197, 94, 0.18);
+    --green-text: #86efac;
+    --yellow-soft: rgba(245, 158, 11, 0.18);
+    --yellow-text: #facc15;
+    --red-soft: rgba(239, 68, 68, 0.18);
+    --red-text: #fca5a5;
 }
 
 /* RESET / BASE */
@@ -61,7 +95,7 @@ body {
     top: 0;
     left: 0;
     height: 100vh;
-    background: #ffffff;
+    background: var(--card);
     border-right: 1px solid var(--border);
     z-index: 100;
     overflow: hidden;
@@ -119,7 +153,7 @@ body {
     width: 36px;
     height: 36px;
     border: 1px solid var(--border);
-    background: #fff;
+    background: var(--input);
     color: var(--text);
     border-radius: 10px;
     cursor: pointer;
@@ -150,31 +184,24 @@ body {
 
 .sidebar-link-icon {
     color: inherit;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-}
-
-.sidebar-link:hover {
-    background: rgba(109, 76, 255, 0.08);
-    color: #6d4cff;
-}
-
-.sidebar-link.active {
-    background: linear-gradient(90deg, var(--purple), var(--purple2));
-    color: white;
-}
-
-.sidebar-link-icon {
     width: 20px;
     min-width: 20px;
+    height: 20px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     font-size: 13px;
     font-weight: 700;
+}
+
+.sidebar-link:hover {
+    background: rgba(109, 76, 255, 0.12);
+    color: var(--purple);
+}
+
+.sidebar-link.active {
+    background: linear-gradient(90deg, var(--purple), var(--purple2));
+    color: #ffffff;
 }
 
 .sidebar-link-text {
@@ -210,6 +237,7 @@ body {
     font-size: 36px;
     font-weight: 800;
     line-height: 1.1;
+    color: var(--text);
 }
 
 .dashboard-subtitle {
@@ -235,12 +263,12 @@ body {
 
 .primary-btn {
     background: linear-gradient(90deg, var(--purple), var(--purple2));
-    color: white;
+    color: #ffffff;
     border: none;
 }
 
 .secondary-btn {
-    background: white;
+    background: var(--input);
     border: 1px solid var(--border);
     color: var(--text);
 }
@@ -264,20 +292,20 @@ body {
 }
 
 /* CARDS */
-.lab-card {
-    background: #fff;
+.lab-card,
+.stat-card {
+    background: var(--card);
     border: 1px solid var(--border);
     border-radius: 22px;
-    padding: 22px;
     box-shadow: var(--shadow);
 }
 
-.stat-card {
-    background: #fff;
-    border: 1px solid var(--border);
-    border-radius: 22px;
+.lab-card {
     padding: 22px;
-    box-shadow: var(--shadow);
+}
+
+.stat-card {
+    padding: 22px;
     min-height: 172px;
     display: flex;
     flex-direction: column;
@@ -303,6 +331,7 @@ body {
     font-size: 30px;
     font-weight: 800;
     line-height: 1;
+    color: var(--text);
 }
 
 .stat-card-status {
@@ -326,41 +355,25 @@ body {
     white-space: nowrap;
 }
 
-.status-normal {
-    background: #dcfce7;
-    color: #166534;
+.status-normal,
+.status-low,
+.severity-low {
+    background: var(--green-soft);
+    color: var(--green-text);
 }
 
 .status-warning,
-.status-medium {
-    background: #fef3c7;
-    color: #92400e;
+.status-medium,
+.severity-medium {
+    background: var(--yellow-soft);
+    color: var(--yellow-text);
 }
 
 .status-flagged,
-.status-high {
-    background: #fee2e2;
-    color: #991b1b;
-}
-
-.status-low {
-    background: #dcfce7;
-    color: #166534;
-}
-
-.severity-low {
-    background: #dcfce7;
-    color: #166534;
-}
-
-.severity-medium {
-    background: #fef3c7;
-    color: #92400e;
-}
-
+.status-high,
 .severity-high {
-    background: #fee2e2;
-    color: #991b1b;
+    background: var(--red-soft);
+    color: var(--red-text);
 }
 
 /* SECTION */
@@ -371,6 +384,7 @@ body {
 .section-header h2 {
     font-size: 18px;
     margin: 0 0 4px;
+    color: var(--text);
 }
 
 .section-header p {
@@ -420,7 +434,7 @@ body {
 
 .forecast-progress {
     height: 10px;
-    background: #e5e7eb;
+    background: var(--progress-bg);
     border-radius: 999px;
     overflow: hidden;
 }
@@ -441,7 +455,7 @@ body {
     padding: 14px;
     border-radius: 14px;
     border: 1px solid var(--border);
-    background: #fafbff;
+    background: var(--card-soft);
 }
 
 .anomaly-top {
@@ -453,6 +467,7 @@ body {
 .anomaly-item h3 {
     margin: 0;
     font-size: 15px;
+    color: var(--text);
 }
 
 .anomaly-item p {
@@ -500,7 +515,7 @@ body {
     align-items: center;
     gap: 8px;
     border: 1px solid var(--border);
-    background: #fff;
+    background: var(--input);
     border-radius: 999px;
     padding: 6px 10px 6px 6px;
     cursor: pointer;
@@ -512,6 +527,16 @@ body {
     border-radius: 999px;
     object-fit: cover;
     display: block;
+}
+
+.profile-role-label {
+    max-width: 120px;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .profile-caret {
@@ -530,12 +555,34 @@ body {
     top: 58px;
     right: 0;
     min-width: 170px;
-    background: #fff;
+    background: var(--dropdown);
     border: 1px solid var(--border);
     border-radius: 16px;
-    box-shadow: 0 18px 40px rgba(2, 6, 23, 0.12);
+    box-shadow: var(--shadow);
     padding: 8px;
     z-index: 100;
+}
+
+.profile-dropdown-meta {
+    padding: 10px 12px 12px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 6px;
+}
+
+.profile-dropdown-meta strong,
+.profile-dropdown-meta span {
+    display: block;
+}
+
+.profile-dropdown-meta strong {
+    font-size: 14px;
+    color: var(--text);
+}
+
+.profile-dropdown-meta span {
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--muted);
 }
 
 .profile-dropdown-item {
@@ -552,60 +599,15 @@ body {
 }
 
 .profile-dropdown-item:hover {
-    background: rgba(109, 76, 255, 0.08);
+    background: rgba(109, 76, 255, 0.12);
 }
 
 .profile-dropdown-item.danger {
-    color: #b42318;
+    color: #f87171;
 }
 
 .profile-dropdown-item.danger:hover {
-    background: #fee4e2;
-}
-
-/* RESPONSIVE */
-@media (max-width: 1000px) {
-    .stats-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-
-    .two-columns {
-        grid-template-columns: 1fr;
-    }
-}
-
-@media (max-width: 768px) {
-    .app-shell-fixed {
-        padding-left: 0 !important;
-    }
-
-    .sidebar-fixed {
-        position: fixed;
-        width: 100%;
-        height: auto;
-        min-height: auto;
-        bottom: auto;
-        border-right: none;
-        border-bottom: 1px solid var(--border);
-    }
-
-    .content-shell {
-        padding-top: 88px;
-    }
-
-    .page-container {
-        padding: 20px;
-    }
-}
-
-@media (max-width: 600px) {
-    .stats-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .dashboard-title {
-        font-size: 28px;
-    }
+    background: rgba(239, 68, 68, 0.12);
 }
 
 /* NOTIFICATION */
@@ -619,7 +621,7 @@ body {
     height: 52px;
     border: 1px solid var(--border);
     border-radius: 999px;
-    background: #fff;
+    background: var(--input);
     color: var(--text);
     display: inline-flex;
     align-items: center;
@@ -642,7 +644,7 @@ body {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border: 2px solid #fff;
+    border: 2px solid var(--card);
 }
 
 .notification-dropdown {
@@ -650,10 +652,10 @@ body {
     top: 62px;
     right: 0;
     width: 360px;
-    background: #fff;
+    background: var(--dropdown);
     border: 1px solid var(--border);
     border-radius: 18px;
-    box-shadow: 0 22px 60px rgba(2, 6, 23, 0.14);
+    box-shadow: var(--shadow);
     padding: 14px;
     z-index: 150;
 }
@@ -664,7 +666,7 @@ body {
     align-items: center;
     gap: 12px;
     padding: 4px 4px 12px;
-    border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+    border-bottom: 1px solid var(--border);
     margin-bottom: 8px;
 }
 
@@ -672,6 +674,7 @@ body {
     margin: 0;
     font-size: 16px;
     font-weight: 800;
+    color: var(--text);
 }
 
 .notification-header span {
@@ -692,7 +695,7 @@ body {
     gap: 10px;
     padding: 12px;
     border-radius: 14px;
-    background: #fafbff;
+    background: var(--card-soft);
 }
 
 .notification-alert-dot {
@@ -745,7 +748,7 @@ body {
     height: 40px;
     border: none;
     border-radius: 12px;
-    background: rgba(109, 76, 255, 0.08);
+    background: rgba(109, 76, 255, 0.12);
     color: var(--purple);
     font-size: 14px;
     font-weight: 800;
@@ -754,8 +757,8 @@ body {
 
 /* WEATHER WIDGET */
 .weather-card {
-    background: linear-gradient(135deg, rgba(109, 76, 255, 0.12), rgba(139, 92, 246, 0.06));
-    border: 1px solid rgba(109, 76, 255, 0.16);
+    background: linear-gradient(135deg, rgba(109, 76, 255, 0.16), rgba(139, 92, 246, 0.06));
+    border: 1px solid rgba(109, 76, 255, 0.18);
     border-radius: 22px;
     padding: 20px 22px;
     margin-bottom: 28px;
@@ -777,7 +780,7 @@ body {
     width: 56px;
     height: 56px;
     border-radius: 18px;
-    background: #fff;
+    background: var(--card);
     color: var(--purple);
     display: flex;
     align-items: center;
@@ -812,8 +815,8 @@ body {
 
 .weather-stats div {
     min-width: 120px;
-    background: #fff;
-    border: 1px solid rgba(15, 23, 42, 0.08);
+    background: var(--card);
+    border: 1px solid var(--border);
     border-radius: 16px;
     padding: 14px;
     display: flex;
@@ -835,8 +838,248 @@ body {
     color: var(--text);
 }
 
-/* RESPONSIVE ADDITIONS */
+/* DARK MODE FIXES FOR ALL MODULE PAGES */
+body.dark-mode .telemetry-metric-card,
+body.dark-mode .telemetry-panel,
+body.dark-mode .telemetry-bottom-strip,
+body.dark-mode .forecast-metric-card,
+body.dark-mode .forecast-panel,
+body.dark-mode .forecast-recommendation-item,
+body.dark-mode .forecast-insight-item,
+body.dark-mode .anomalies-summary-card,
+body.dark-mode .anomalies-panel,
+body.dark-mode .anomalies-popup-card,
+body.dark-mode .anomalies-popup-grid div,
+body.dark-mode .anomalies-ai-message.case,
+body.dark-mode .reports-summary-card,
+body.dark-mode .reports-panel,
+body.dark-mode .reports-benchmark-panel,
+body.dark-mode .reports-benchmark-card,
+body.dark-mode .reports-preview-modal,
+body.dark-mode .reports-pdf-preview,
+body.dark-mode .simulation-panel,
+body.dark-mode .simulation-summary-card,
+body.dark-mode .tank-images-panel,
+body.dark-mode .tank-gallery-card,
+body.dark-mode .settings-panel {
+    background: var(--card) !important;
+    color: var(--text) !important;
+    border-color: var(--border) !important;
+}
+
+body.dark-mode .telemetry-filter-btn,
+body.dark-mode .forecast-filter-btn,
+body.dark-mode .anomalies-filter-btn,
+body.dark-mode .reports-filter-btn,
+body.dark-mode .simulation-filter-btn,
+body.dark-mode .tank-images-filter-btn,
+body.dark-mode .settings-btn,
+body.dark-mode .secondary-btn,
+body.dark-mode .profile-avatar-btn,
+body.dark-mode .notification-btn,
+body.dark-mode .sidebar-toggle-btn,
+body.dark-mode .reports-icon-btn,
+body.dark-mode .anomalies-icon-btn,
+body.dark-mode .anomalies-sparkle-btn,
+body.dark-mode .simulation-icon-btn,
+body.dark-mode .tank-gallery-more,
+body.dark-mode .tank-gallery-btn,
+body.dark-mode .anomalies-clear-btn,
+body.dark-mode .reports-preview-btn,
+body.dark-mode .reports-preview-secondary {
+    background: var(--input) !important;
+    color: var(--text) !important;
+    border-color: var(--border) !important;
+}
+
+body.dark-mode .primary-btn,
+body.dark-mode .reports-generate-btn,
+body.dark-mode .simulation-run-btn,
+body.dark-mode .tank-capture-btn,
+body.dark-mode .anomalies-resolve-btn {
+    background: linear-gradient(90deg, var(--purple), var(--purple2)) !important;
+    color: #ffffff !important;
+    border: none !important;
+}
+
+body.dark-mode .simulation-add-btn {
+    background: rgba(109, 76, 255, 0.14) !important;
+    color: #c4b5fd !important;
+    border-color: rgba(109, 76, 255, 0.34) !important;
+}
+
+body.dark-mode .simulation-toggle-btn.active,
+body.dark-mode .reports-page-btn.active,
+body.dark-mode .anomalies-page-btn.active {
+    background: linear-gradient(90deg, var(--purple), var(--purple2)) !important;
+    color: #ffffff !important;
+    border: none !important;
+}
+
+body.dark-mode .simulation-toggle-btn:not(.active) {
+    background: transparent !important;
+    color: var(--muted) !important;
+}
+
+body.dark-mode .simulation-chart-toggle {
+    background: var(--card-soft) !important;
+    border: 1px solid var(--border);
+}
+
+body.dark-mode .tank-live-meta-grid,
+body.dark-mode .tank-live-meta-item,
+body.dark-mode .weather-stats div,
+body.dark-mode .reports-input-icon,
+body.dark-mode .reports-select,
+body.dark-mode .reports-input,
+body.dark-mode .simulation-select,
+body.dark-mode .simulation-input,
+body.dark-mode .simulation-range-value,
+body.dark-mode .tank-images-select,
+body.dark-mode .tank-gallery-search,
+body.dark-mode .anomalies-search-input,
+body.dark-mode .anomalies-select,
+body.dark-mode .settings-field input,
+body.dark-mode .settings-field select {
+    background: var(--input) !important;
+    color: var(--text) !important;
+    border-color: var(--border) !important;
+}
+
+body.dark-mode input::placeholder,
+body.dark-mode .tank-gallery-search::placeholder,
+body.dark-mode .anomalies-search-input::placeholder {
+    color: var(--muted) !important;
+}
+
+body.dark-mode .telemetry-table th,
+body.dark-mode .telemetry-table td,
+body.dark-mode .anomalies-table th,
+body.dark-mode .anomalies-table td,
+body.dark-mode .reports-table th,
+body.dark-mode .reports-table td,
+body.dark-mode .simulation-table th,
+body.dark-mode .simulation-table td {
+    color: var(--text) !important;
+    border-color: var(--border) !important;
+}
+
+body.dark-mode .telemetry-metric-label,
+body.dark-mode .forecast-metric-label,
+body.dark-mode .anomalies-summary-label,
+body.dark-mode .reports-summary-label,
+body.dark-mode .simulation-summary-label,
+body.dark-mode .section-header p,
+body.dark-mode .telemetry-strip-label,
+body.dark-mode .forecast-metric-meta,
+body.dark-mode .reports-summary-meta,
+body.dark-mode .simulation-summary-subtext,
+body.dark-mode .anomaly-item p,
+body.dark-mode .anomaly-time,
+body.dark-mode .tank-live-meta-label,
+body.dark-mode .tank-panel-header p,
+body.dark-mode .tank-gallery-timestamp {
+    color: var(--muted) !important;
+}
+
+body.dark-mode .telemetry-metric-value,
+body.dark-mode .telemetry-metric-unit,
+body.dark-mode .forecast-metric-value,
+body.dark-mode .anomalies-summary-value,
+body.dark-mode .reports-summary-value,
+body.dark-mode .simulation-summary-value,
+body.dark-mode .stat-value,
+body.dark-mode .section-header h2,
+body.dark-mode .telemetry-panel-header h2,
+body.dark-mode .forecast-panel-header h2,
+body.dark-mode .anomalies-popup-header h2,
+body.dark-mode .reports-panel-header h2,
+body.dark-mode .simulation-panel-header h2,
+body.dark-mode .tank-panel-header h2 {
+    color: var(--text) !important;
+}
+
+body.dark-mode .forecast-storage-progress,
+body.dark-mode .forecast-progress,
+body.dark-mode .reports-progress,
+body.dark-mode .simulation-progress,
+body.dark-mode .tank-toggle {
+    background: var(--progress-bg) !important;
+}
+
+body.dark-mode .tank-toggle.active {
+    background: linear-gradient(90deg, var(--purple), var(--purple2)) !important;
+}
+
+body.dark-mode .tank-toggle-knob {
+    background: #ffffff !important;
+}
+
+body.dark-mode .anomaly-item,
+body.dark-mode .notification-item,
+body.dark-mode .forecast-recommendation-item,
+body.dark-mode .forecast-insight-item {
+    background: var(--card-soft) !important;
+}
+
+body.dark-mode .status-pill,
+body.dark-mode .severity-badge,
+body.dark-mode .telemetry-inline-status,
+body.dark-mode .anomaly-table-badge {
+    opacity: 1 !important;
+}
+
+body.dark-mode .profile-dropdown,
+body.dark-mode .notification-dropdown,
+body.dark-mode .simulation-week-dropdown {
+    background: var(--dropdown) !important;
+    color: var(--text) !important;
+    border-color: var(--border) !important;
+}
+
+body.dark-mode .profile-dropdown-item {
+    color: var(--text) !important;
+}
+
+body.dark-mode .profile-dropdown-item:hover,
+body.dark-mode .notification-view-all:hover {
+    background: rgba(109, 76, 255, 0.16) !important;
+}
+
+/* RESPONSIVE */
+@media (max-width: 1000px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .two-columns {
+        grid-template-columns: 1fr;
+    }
+}
+
 @media (max-width: 768px) {
+    .app-shell-fixed {
+        padding-left: 0 !important;
+    }
+
+    .sidebar-fixed {
+        position: fixed;
+        width: 100%;
+        height: auto;
+        min-height: auto;
+        bottom: auto;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .content-shell {
+        padding-top: 88px;
+    }
+
+    .page-container {
+        padding: 20px;
+    }
+
     .notification-dropdown {
         right: -70px;
         width: min(340px, calc(100vw - 40px));
@@ -849,5 +1092,15 @@ body {
 
     .weather-card {
         align-items: stretch;
+    }
+}
+
+@media (max-width: 600px) {
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .dashboard-title {
+        font-size: 28px;
     }
 }

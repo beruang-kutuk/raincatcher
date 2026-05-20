@@ -1,19 +1,40 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../../styles/auth.css";
 import AuthLayout from "../../components/auth/AuthLayout";
 import WeeklyForecastWidget from "../../components/weather/WeeklyForecastWidget";
+import {
+  getDashboardPath,
+  ROLE_LABELS,
+  type UserRole,
+} from "../../auth/rbac";
+
+const loginRoles: Array<{
+  role: UserRole;
+  description: string;
+}> = [
+  {
+    role: "LAB_ASSISTANT",
+    description: "Monitoring, reports, anomalies, and tank operations",
+  },
+  {
+    role: "SYSTEM_ADMIN",
+    description: "Superadmin access for users, thresholds, simulation, and rules",
+  },
+];
 
 export default function LoginPage() {
   const nav = useNavigate();
+  const [selectedRole, setSelectedRole] = useState<UserRole>("LAB_ASSISTANT");
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    // Mock auth (for now)
+    // Mock auth until the Spring Boot auth endpoint is connected.
     localStorage.setItem("rc_token", "mock-token");
-    localStorage.setItem("rc_role", "LAB_ASSISTANT");
+    localStorage.setItem("rc_role", selectedRole);
 
-    nav("/lab/dashboard");
+    nav(getDashboardPath(selectedRole));
   }
 
   return (
@@ -22,15 +43,35 @@ export default function LoginPage() {
         <div className="auth-left">
           <div className="auth-brand">Raincatcher</div>
           <h1 className="auth-title">Welcome back</h1>
-          <p className="auth-subtitle">Sign in with your username and password.</p>
+          <p className="auth-subtitle">
+            Choose a demo role and sign in to the matching workspace.
+          </p>
 
           <form className="auth-form" onSubmit={onSubmit}>
+            <div className="auth-role-group" aria-label="Select demo role">
+              {loginRoles.map((item) => (
+                <button
+                  key={item.role}
+                  type="button"
+                  className={`auth-role-option ${selectedRole === item.role ? "active" : ""}`}
+                  onClick={() => setSelectedRole(item.role)}
+                >
+                  <strong>{ROLE_LABELS[item.role]}</strong>
+                  <span>{item.description}</span>
+                </button>
+              ))}
+            </div>
+
             <label className="auth-label">
               Username
               <input
                 className="auth-input"
                 name="username"
-                placeholder="e.g. labassistant01"
+                placeholder={
+                  selectedRole === "SYSTEM_ADMIN"
+                    ? "e.g. admin01"
+                    : "e.g. labassistant01"
+                }
                 autoComplete="username"
               />
             </label>
@@ -41,7 +82,7 @@ export default function LoginPage() {
                 className="auth-input"
                 name="password"
                 type="password"
-                placeholder="••••••••"
+                placeholder="********"
                 autoComplete="current-password"
               />
             </label>
@@ -62,7 +103,7 @@ export default function LoginPage() {
             </button>
 
             <p className="auth-hint">
-              Mock login: redirects to the dashboard. Backend auth comes later.
+              Mock login: role-based routing is active. Backend auth comes later.
             </p>
           </form>
         </div>

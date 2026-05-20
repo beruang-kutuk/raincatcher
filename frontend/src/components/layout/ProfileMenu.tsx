@@ -1,9 +1,16 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+    clearSession,
+    getStoredRole,
+    ROLE_LABELS,
+} from "../../auth/rbac";
 
 export default function ProfileMenu() {
     const [open, setOpen] = useState(false);
     const navigate = useNavigate();
+    const role = getStoredRole();
+    const roleLabel = role ? ROLE_LABELS[role] : "Guest";
 
     return (
         <div className="profile-menu-wrapper">
@@ -17,13 +24,19 @@ export default function ProfileMenu() {
                     alt="User profile"
                     className="profile-avatar"
                 />
+                <span className="profile-role-label">{roleLabel}</span>
                 <span className={`profile-caret ${open ? "open" : ""}`}>
-                    ⌄
+                    v
                 </span>
             </button>
 
             {open && (
                 <div className="profile-dropdown">
+                    <div className="profile-dropdown-meta">
+                        <strong>{roleLabel}</strong>
+                        <span>Mock session</span>
+                    </div>
+
                     <button
                         className="profile-dropdown-item"
                         type="button"
@@ -40,7 +53,8 @@ export default function ProfileMenu() {
                         type="button"
                         onClick={() => {
                             setOpen(false);
-                            navigate("/login"); // or your logout logic later
+                            clearSession();
+                            navigate("/login", { replace: true });
                         }}
                     >
                         Logout

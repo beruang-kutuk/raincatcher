@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Archive, CheckCircle2 } from "lucide-react";
 import "../../../styles/dashboard.css";
 import "../../../styles/anomalies.css";
 import Sidebar from "../../../components/layout/Sidebar";
@@ -20,6 +21,7 @@ type AnomalyRow = {
     status: "unresolved" | "investigating" | "resolved";
     value: string;
     recommendation: string;
+    resolvedAt?: string;
 };
 
 const initialAnomalies: AnomalyRow[] = [
@@ -58,6 +60,42 @@ const initialAnomalies: AnomalyRow[] = [
     },
 ];
 
+const resolvedArchiveMock: AnomalyRow[] = [
+    {
+        id: 101,
+        time: "12 Apr 2026, 02:20 PM",
+        source: "Tank A - Turbidity Sensor",
+        description: "Temporary turbidity increase after heavy rainfall.",
+        severity: "medium",
+        status: "resolved",
+        value: "14.2 NTU",
+        resolvedAt: "12 Apr 2026, 04:10 PM",
+        recommendation: "Filter was cleaned and turbidity returned to normal readings.",
+    },
+    {
+        id: 102,
+        time: "28 Mar 2026, 11:05 AM",
+        source: "Tank C - Flow Rate",
+        description: "Flow rate dropped below expected threshold.",
+        severity: "low",
+        status: "resolved",
+        value: "10.8 L/min",
+        resolvedAt: "28 Mar 2026, 01:35 PM",
+        recommendation: "Pipe inlet was inspected and minor blockage was cleared.",
+    },
+    {
+        id: 103,
+        time: "19 Feb 2026, 09:40 AM",
+        source: "RC-01 Telemetry Unit",
+        description: "Telemetry reading delay due to unstable gateway connection.",
+        severity: "low",
+        status: "resolved",
+        value: "42 min delay",
+        resolvedAt: "19 Feb 2026, 10:25 AM",
+        recommendation: "Gateway connection was restarted and signal strength was verified.",
+    },
+];
+
 function getSeverityClass(severity: "high" | "medium" | "low") {
     if (severity === "high") return "anomaly-badge-high";
     if (severity === "medium") return "anomaly-badge-medium";
@@ -90,8 +128,15 @@ function SummaryStatCard({ label, value, meta, status }: SummaryCard) {
 export default function AnomaliesPage() {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [anomalies, setAnomalies] = useState<AnomalyRow[]>(initialAnomalies);
+    const [resolvedArchive, setResolvedArchive] =
+        useState<AnomalyRow[]>(resolvedArchiveMock);
     const [selectedAnomaly, setSelectedAnomaly] = useState<AnomalyRow | null>(null);
     const [aiAnomaly, setAiAnomaly] = useState<AnomalyRow | null>(null);
+    const [resolvedPopupOpen, setResolvedPopupOpen] = useState(false);
+
+    const allResolvedCases = useMemo(() => {
+        return resolvedArchive;
+    }, [resolvedArchive]);
 
     const summaryCards: SummaryCard[] = useMemo(() => {
         const total = anomalies.length || 1;
@@ -129,15 +174,28 @@ export default function AnomaliesPage() {
     }, [anomalies]);
 
     function handleResolve(id: number) {
-        setAnomalies((prev) =>
-            prev.map((item) =>
-                item.id === id ? { ...item, status: "resolved" } : item
-            )
-        );
+        const resolvedTime = "21 Apr 2026, 11:00 AM";
+        const target = anomalies.find((item) => item.id === id);
 
-        setSelectedAnomaly((prev) =>
-            prev && prev.id === id ? { ...prev, status: "resolved" } : prev
-        );
+        if (!target) return;
+
+        const resolvedCase: AnomalyRow = {
+            ...target,
+            status: "resolved",
+            resolvedAt: resolvedTime,
+        };
+
+        setResolvedArchive((prev) => {
+            const alreadyExists = prev.some((item) => item.id === id);
+
+            if (alreadyExists) return prev;
+
+            return [resolvedCase, ...prev];
+        });
+
+        setAnomalies((prev) => prev.filter((item) => item.id !== id));
+
+        setSelectedAnomaly(null);
     }
 
     return (
@@ -162,6 +220,16 @@ export default function AnomaliesPage() {
 
                                 <button className="anomalies-filter-btn" type="button">
                                     All Sensors
+                                </button>
+
+                                <button
+                                    type="button"
+                                    className="anomalies-resolved-icon-btn"
+                                    onClick={() => setResolvedPopupOpen(true)}
+                                    title="Resolved cases"
+                                >
+                                    <Archive size={18} />
+                                    <span>{allResolvedCases.length}</span>
                                 </button>
 
                                 <div className="dashboard-actions">
@@ -288,6 +356,80 @@ export default function AnomaliesPage() {
                     </div>
                 </main>
             </div>
+
+            {resolvedPopupOpen && (
+                <div className="anomalies-popup-backdrop">
+                    <div className="anomalies-popup-card resolved">
+                        <div className="anomalies-popup-header">
+                            <div>
+                                <h2>Resolved Cases</h2>
+                                <p>Resolved anomaly history for the past 3 months</p>
+                            </div>
+
+                            <button
+                                type="button"
+                                className="anomalies-popup-close"
+                                onClick={() => setResolvedPopupOpen(false)}
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <div className="anomalies-resolved-summary">
+                            <div>
+                                <span>Total Resolved</span>
+                                <strong>{allResolvedCases.length}</strong>
+                            </div>
+
+                            <div>
+                                <span>Storage Period</span>
+                                <strong>3 months</strong>
+                            </div>
+
+                            <div>
+                                <span>Latest Resolution</span>
+                                <strong>{allResolvedCases[0]?.resolvedAt || "N/A"}</strong>
+                            </div>
+                        </div>
+
+                        <div className="anomalies-resolved-list">
+                            {allResolvedCases.map((item) => (
+                                <article key={item.id} className="anomalies-resolved-item">
+                                    <div className="anomalies-resolved-icon">
+                                        <CheckCircle2 size={18} />
+                                    </div>
+
+                                    <div className="anomalies-resolved-content">
+                                        <div className="anomalies-resolved-top">
+                                            <h3>{item.source}</h3>
+                                            <span className={`anomaly-table-badge ${getSeverityClass(item.severity)}`}>
+                                                {item.severity}
+                                            </span>
+                                        </div>
+
+                                        <p>{item.description}</p>
+
+                                        <div className="anomalies-resolved-meta">
+                                            <span>Detected: {item.time}</span>
+                                            <span>Resolved: {item.resolvedAt || "N/A"}</span>
+                                        </div>
+                                    </div>
+                                </article>
+                            ))}
+                        </div>
+
+                        <div className="anomalies-popup-actions">
+                            <button
+                                type="button"
+                                className="anomalies-resolve-btn"
+                                onClick={() => setResolvedPopupOpen(false)}
+                            >
+                                Done
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {selectedAnomaly && (
                 <div className="anomalies-popup-backdrop">

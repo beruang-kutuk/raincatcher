@@ -15,6 +15,16 @@
     font-size: 36px;
     font-weight: 800;
     margin: 0;
+    color: var(--text);
+}
+
+.settings-kicker {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--purple);
+    font-size: 13px;
+    font-weight: 800;
+    text-transform: uppercase;
 }
 
 /* GRID */
@@ -26,7 +36,7 @@
 
 /* PANEL */
 .settings-panel {
-    background: #fff;
+    background: var(--card);
     border: 1px solid var(--border);
     border-radius: 22px;
     padding: 22px;
@@ -37,6 +47,7 @@
     margin: 0 0 16px;
     font-size: 18px;
     font-weight: 800;
+    color: var(--text);
 }
 
 /* FIELD */
@@ -60,6 +71,8 @@
     border: 1px solid var(--border);
     padding: 0 12px;
     font-size: 14px;
+    background: var(--input);
+    color: var(--text);
 }
 
 /* BUTTONS */
@@ -68,7 +81,8 @@
     height: 42px;
     border-radius: 12px;
     border: 1px solid var(--border);
-    background: white;
+    background: var(--input);
+    color: var(--text);
     font-weight: 600;
     cursor: pointer;
     margin-bottom: 10px;

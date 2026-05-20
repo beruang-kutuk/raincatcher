@@ -1,13 +1,18 @@
 import { Link, useLocation } from "react-router-dom";
 import {
-    LayoutDashboard,
     Activity,
-    CloudRain,
     AlertTriangle,
-    Image,
+    CloudRain,
+    FileText,
     FlaskConical,
-    FileText
+    Image,
+    LayoutDashboard,
+    Settings,
+    ShieldCheck,
+    SlidersHorizontal,
+    UserCog,
 } from "lucide-react";
+import { getStoredRole } from "../../auth/rbac";
 
 type SidebarItem = {
     label: string;
@@ -30,8 +35,18 @@ const labItems: SidebarItem[] = [
     { label: "Reports", path: "/lab/reports", icon: <FileText size={18} /> },
 ];
 
+const adminItems: SidebarItem[] = [
+    { label: "Admin Dashboard", path: "/admin/dashboard", icon: <ShieldCheck size={18} /> },
+    { label: "System Admin", path: "/admin/system", icon: <SlidersHorizontal size={18} /> },
+    { label: "Access Control", path: "/admin/access", icon: <UserCog size={18} /> },
+    { label: "Settings", path: "/settings", icon: <Settings size={18} /> },
+];
+
 export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
     const location = useLocation();
+    const role = getStoredRole();
+    const isAdmin = role === "SYSTEM_ADMIN";
+    const items = isAdmin ? adminItems : labItems;
 
     return (
         <aside className={`sidebar-fixed ${isOpen ? "expanded" : "collapsed"}`}>
@@ -41,7 +56,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
                         {isOpen && (
                             <div className="sidebar-brand">
                                 <h2>Raincatcher</h2>
-                                <p>Lab Panel</p>
+                                <p>{isAdmin ? "Super Admin" : "Lab Panel"}</p>
                             </div>
                         )}
 
@@ -51,17 +66,17 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
                             onClick={onToggle}
                             aria-label={isOpen ? "Collapse sidebar" : "Expand sidebar"}
                         >
-                            {isOpen ? "‹" : "›"}
+                            {isOpen ? "<" : ">"}
                         </button>
                     </div>
 
                     <nav className="sidebar-nav">
-                        {labItems.map((item) => {
+                        {items.map((item) => {
                             const isActive = location.pathname === item.path;
 
                             return (
                                 <Link
-                                    key={item.path}
+                                    key={`${item.label}-${item.path}`}
                                     to={item.path}
                                     className={`sidebar-link ${isActive ? "active" : ""}`}
                                     title={!isOpen ? item.label : undefined}

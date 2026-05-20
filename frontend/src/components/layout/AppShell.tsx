@@ -1,4 +1,5 @@
-import Sidebar from "././Sidebar";
+import { useState } from "react";
+import Sidebar from "./Sidebar";
 
 export default function AppShell({
     title,
@@ -9,10 +10,15 @@ export default function AppShell({
     actions?: React.ReactNode;
     children: React.ReactNode;
 }) {
+    const [sidebarOpen, setSidebarOpen] = useState(true);
+
     return (
-        <div className="rc-page">
-            <div className="rc-shell">
-                <Sidebar />
+        <div className={`app-shell-fixed ${sidebarOpen ? "sidebar-expanded" : "sidebar-collapsed"}`}>
+            <div className="content-shell">
+                <Sidebar
+                    isOpen={sidebarOpen}
+                    onToggle={() => setSidebarOpen((prev) => !prev)}
+                />
                 <main className="rc-main">
                     <div className="rc-topbar">
                         <div className="rc-title">{title}</div>

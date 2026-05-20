@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import LoginPage from "./pages/auth/LoginPage";
 import LabDashboardPage from "./pages/auth/lab/LabDashboardPage";
@@ -9,29 +10,102 @@ import TankImagesPage from "./pages/auth/lab/TankImagesPage";
 import SimulationPage from "./pages/auth/lab/SimulationPage";
 import ReportsPage from "./pages/auth/lab/ReportsPage";
 import SettingsPage from "./pages/auth/SettingsPage";
+import AdminDashboardPage from "./pages/auth/admin/AdminDashboardPage";
+import SystemAdminPage from "./pages/auth/admin/SystemAdminPage";
+import AccessControlPage from "./pages/auth/admin/AccessControlPage";
+import {
+  getDashboardPath,
+  getStoredRole,
+  type UserRole,
+} from "./auth/rbac";
+
+const labRoles: UserRole[] = ["LAB_ASSISTANT"];
+const adminRoles: UserRole[] = ["SYSTEM_ADMIN"];
+const allRoles: UserRole[] = ["LAB_ASSISTANT", "SYSTEM_ADMIN"];
+
+function RoleRedirect() {
+  const token = localStorage.getItem("rc_token");
+  const role = getStoredRole();
+
+  if (!token || !role) return <Navigate to="/login" replace />;
+
+  return <Navigate to={getDashboardPath(role)} replace />;
+}
 
 export default function App() {
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("theme");
+
+    if (savedTheme === "dark") {
+      document.body.classList.add("dark-mode");
+    } else {
+      document.body.classList.remove("dark-mode");
+    }
+  }, []);
+
   return (
     <BrowserRouter>
       <Routes>
-        {/* Auth */}
         <Route path="/login" element={<LoginPage />} />
 
-        {/* Lab Assistant routes */}
+        <Route
+          path="/admin/dashboard"
+          element={
+            <RequireAuth allowedRoles={adminRoles}>
+              <AdminDashboardPage />
+            </RequireAuth>
+          }
+        />
+
+        <Route
+          path="/admin/system"
+          element={
+            <RequireAuth allowedRoles={adminRoles}>
+              <SystemAdminPage />
+            </RequireAuth>
+          }
+        />
+
+        <Route
+          path="/admin/access"
+          element={
+            <RequireAuth allowedRoles={adminRoles}>
+              <AccessControlPage />
+            </RequireAuth>
+          }
+        />
+
+        <Route
+          path="/admin"
+          element={
+            <RequireAuth allowedRoles={adminRoles}>
+              <Navigate to="/admin/dashboard" replace />
+            </RequireAuth>
+          }
+        />
+
+        <Route
+          path="/lab"
+          element={
+            <RequireAuth allowedRoles={labRoles}>
+              <Navigate to="/lab/dashboard" replace />
+            </RequireAuth>
+          }
+        />
+
         <Route
           path="/lab/dashboard"
           element={
-            <RequireAuth>
+            <RequireAuth allowedRoles={labRoles}>
               <LabDashboardPage />
             </RequireAuth>
           }
         />
 
-        {/* Placeholder pages so sidebar links work */}
         <Route
           path="/lab/telemetry"
           element={
-            <RequireAuth>
+            <RequireAuth allowedRoles={labRoles}>
               <TelemetryPage />
             </RequireAuth>
           }
@@ -40,7 +114,7 @@ export default function App() {
         <Route
           path="/lab/forecast"
           element={
-            <RequireAuth>
+            <RequireAuth allowedRoles={labRoles}>
               <ForecastPage />
             </RequireAuth>
           }
@@ -49,7 +123,7 @@ export default function App() {
         <Route
           path="/lab/anomalies"
           element={
-            <RequireAuth>
+            <RequireAuth allowedRoles={labRoles}>
               <AnomaliesPage />
             </RequireAuth>
           }
@@ -58,7 +132,7 @@ export default function App() {
         <Route
           path="/lab/images"
           element={
-            <RequireAuth>
+            <RequireAuth allowedRoles={labRoles}>
               <TankImagesPage />
             </RequireAuth>
           }
@@ -67,7 +141,7 @@ export default function App() {
         <Route
           path="/lab/simulation"
           element={
-            <RequireAuth>
+            <RequireAuth allowedRoles={labRoles}>
               <SimulationPage />
             </RequireAuth>
           }
@@ -76,7 +150,7 @@ export default function App() {
         <Route
           path="/lab/reports"
           element={
-            <RequireAuth>
+            <RequireAuth allowedRoles={labRoles}>
               <ReportsPage />
             </RequireAuth>
           }
@@ -85,15 +159,14 @@ export default function App() {
         <Route
           path="/settings"
           element={
-            <RequireAuth>
+            <RequireAuth allowedRoles={allRoles}>
               <SettingsPage />
             </RequireAuth>
           }
         />
 
-        {/* Defaults */}
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route path="/" element={<RoleRedirect />} />
+        <Route path="*" element={<RoleRedirect />} />
       </Routes>
     </BrowserRouter>
   );
