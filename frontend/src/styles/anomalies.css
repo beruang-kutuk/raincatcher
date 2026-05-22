@@ -656,3 +656,78 @@
         flex-direction: column;
     }
 }
+
+/* DARK MODE CONTRAST */
+body.dark-mode .anomalies-page {
+    color: var(--text);
+}
+
+body.dark-mode .anomalies-filter-group label,
+body.dark-mode .anomalies-table th,
+body.dark-mode .anomalies-table td,
+body.dark-mode .anomalies-popup-header h2,
+body.dark-mode .anomalies-popup-section h3,
+body.dark-mode .anomalies-resolved-top h3,
+body.dark-mode .anomalies-ai-message strong {
+    color: var(--text);
+}
+
+body.dark-mode .anomalies-popup-header p,
+body.dark-mode .anomalies-popup-section p,
+body.dark-mode .anomalies-popup-note,
+body.dark-mode .anomalies-resolved-content p,
+body.dark-mode .anomalies-resolved-meta,
+body.dark-mode .anomalies-table-footer p,
+body.dark-mode .anomalies-summary-meta,
+body.dark-mode .anomalies-ai-message.case {
+    color: var(--muted);
+}
+
+body.dark-mode .anomalies-popup-grid div,
+body.dark-mode .anomalies-resolved-summary div,
+body.dark-mode .anomalies-resolved-item,
+body.dark-mode .anomalies-ai-message.case {
+    background: var(--card-soft);
+    border-color: var(--border);
+}
+
+body.dark-mode .anomalies-resolved-summary span,
+body.dark-mode .anomalies-popup-grid span {
+    color: var(--muted);
+}
+
+body.dark-mode .anomalies-resolved-summary strong,
+body.dark-mode .anomalies-popup-grid strong {
+    color: var(--text);
+}
+
+body.dark-mode .anomalies-popup-close,
+body.dark-mode .anomalies-resolved-icon-btn,
+body.dark-mode .anomalies-page-btn {
+    background: var(--input);
+    color: var(--text);
+    border-color: var(--border);
+}
+
+body.dark-mode .anomalies-select option {
+    background: var(--input);
+    color: var(--text);
+}
+
+body.dark-mode .anomalies-popup-close:hover,
+body.dark-mode .anomalies-resolved-icon-btn:hover,
+body.dark-mode .anomalies-icon-btn:hover,
+body.dark-mode .anomalies-clear-btn:hover,
+body.dark-mode .anomalies-page-btn:hover {
+    background: rgba(109, 76, 255, 0.16);
+}
+
+body.dark-mode .anomalies-resolved-icon-btn span {
+    border-color: var(--card);
+}
+
+body.dark-mode .anomalies-popup-note,
+body.dark-mode .anomalies-ai-message.assistant {
+    background: rgba(109, 76, 255, 0.16);
+    color: var(--text);
+}

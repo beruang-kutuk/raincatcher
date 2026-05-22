@@ -4,6 +4,9 @@ import "../../../styles/tank-images.css";
 import Sidebar from "../../../components/layout/Sidebar";
 import tankImage from "../../../assets/images/msu-camera.jpeg";
 import ProfileMenu from "../../../components/layout/ProfileMenu";
+import RpiCameraFeed from "../../../components/lab/RpiCameraFeed";
+
+const TANK_LABEL = "Rainwater Tank";
 
 type CaptureItem = {
     id: number;
@@ -16,32 +19,32 @@ const capturedImages: CaptureItem[] = [
     {
         id: 1,
         image: tankImage,
-        timestamp: "21 Apr 2026, 10:15 AM",
-        tank: "Tank A",
+        timestamp: "Captured image history coming soon",
+        tank: TANK_LABEL,
     },
     {
         id: 2,
         image: tankImage,
-        timestamp: "21 Apr 2026, 10:00 AM",
-        tank: "Tank A",
+        timestamp: "Captured image history coming soon",
+        tank: TANK_LABEL,
     },
     {
         id: 3,
         image: tankImage,
-        timestamp: "21 Apr 2026, 09:45 AM",
-        tank: "Tank A",
+        timestamp: "Captured image history coming soon",
+        tank: TANK_LABEL,
     },
     {
         id: 4,
         image: tankImage,
-        timestamp: "21 Apr 2026, 09:30 AM",
-        tank: "Tank A",
+        timestamp: "Captured image history coming soon",
+        tank: TANK_LABEL,
     },
     {
         id: 5,
         image: tankImage,
-        timestamp: "21 Apr 2026, 09:15 AM",
-        tank: "Tank A",
+        timestamp: "Captured image history coming soon",
+        tank: TANK_LABEL,
     },
 ];
 
@@ -70,7 +73,7 @@ export default function TankImagesPage() {
                                 </button>
 
                                 <button className="tank-images-filter-btn" type="button">
-                                    All Tanks
+                                    {TANK_LABEL}
                                 </button>
 
                                 <div className="dashboard-actions">
@@ -83,56 +86,20 @@ export default function TankImagesPage() {
                             <section className="tank-images-panel tank-live-panel">
                                 <div className="tank-panel-header tank-panel-header-split">
                                     <h2>Live Feed</h2>
-                                    <span className="tank-live-badge">● Live</span>
+                                    <span className="tank-live-badge">Live</span>
                                 </div>
 
-                                <div className="tank-live-frame">
-                                    <img
-                                        src={tankImage}
-                                        alt="Live tank feed"
-                                        className="tank-live-image"
-                                    />
-
-                                    <div className="tank-live-overlay">Tank A</div>
-                                </div>
-
-                                <div className="tank-live-meta-grid">
-                                    <div className="tank-live-meta-item">
-                                        <span className="tank-live-meta-label">Resolution</span>
-                                        <strong>1080p</strong>
-                                    </div>
-
-                                    <div className="tank-live-meta-item">
-                                        <span className="tank-live-meta-label">FPS</span>
-                                        <strong>30</strong>
-                                    </div>
-
-                                    <div className="tank-live-meta-item">
-                                        <span className="tank-live-meta-label">Last Updated</span>
-                                        <strong>10:24:15 AM</strong>
-                                    </div>
-
-                                    <div className="tank-live-meta-item">
-                                        <span className="tank-live-meta-label">Connection</span>
-                                        <strong>Good</strong>
-                                    </div>
-                                </div>
+                                <RpiCameraFeed
+                                    frameClassName="tank-live-frame"
+                                    imageClassName="tank-live-image"
+                                    overlayLabel={TANK_LABEL}
+                                />
                             </section>
 
                             <section className="tank-images-panel tank-control-panel">
                                 <div className="tank-panel-header">
                                     <h2>Capture Control</h2>
                                     <p>Manually capture a new image from the live feed.</p>
-                                </div>
-
-                                <div className="tank-control-group">
-                                    <label>Select Tank</label>
-                                    <select className="tank-images-select">
-                                        <option>Tank A</option>
-                                        <option>Tank B</option>
-                                        <option>Tank C</option>
-                                        <option>Tank D</option>
-                                    </select>
                                 </div>
 
                                 <button className="tank-capture-btn" type="button">
@@ -173,6 +140,7 @@ export default function TankImagesPage() {
                             <div className="tank-panel-header tank-gallery-header">
                                 <div>
                                     <h2>Captured Images</h2>
+                                    <p>Captured image history coming soon.</p>
                                 </div>
 
                                 <div className="tank-gallery-tools">

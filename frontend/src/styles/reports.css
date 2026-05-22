@@ -423,6 +423,10 @@
     color: var(--text);
 }
 
+.reports-checkbox-item input {
+    accent-color: var(--purple);
+}
+
 .reports-generate-actions {
     display: grid;
     grid-template-columns: 0.8fr 1.2fr;
@@ -829,4 +833,131 @@
     .reports-preview-modal {
         padding: 18px;
     }
+}
+
+/* DARK MODE CONTRAST */
+body.dark-mode .reports-page {
+    color: var(--text);
+}
+
+body.dark-mode .reports-panel-header h2,
+body.dark-mode .reports-form-group label,
+body.dark-mode .reports-table th,
+body.dark-mode .reports-table td,
+body.dark-mode .reports-quick-content h3,
+body.dark-mode .reports-benchmark-left h2,
+body.dark-mode .reports-benchmark-card-top h3,
+body.dark-mode .reports-preview-header h2,
+body.dark-mode .reports-pdf-section h3,
+body.dark-mode .reports-pdf-metrics strong,
+body.dark-mode .reports-checkbox-item {
+    color: var(--text);
+}
+
+body.dark-mode .reports-summary-label,
+body.dark-mode .reports-summary-meta,
+body.dark-mode .reports-benchmark-left p,
+body.dark-mode .reports-benchmark-values span,
+body.dark-mode .reports-legend,
+body.dark-mode .reports-chart-labels,
+body.dark-mode .reports-axis-text,
+body.dark-mode .reports-quick-content p,
+body.dark-mode .reports-quick-arrow,
+body.dark-mode .reports-table-footer p,
+body.dark-mode .reports-preview-header p,
+body.dark-mode .reports-pdf-section p,
+body.dark-mode .reports-pdf-metrics span {
+    color: var(--muted);
+    fill: var(--muted);
+}
+
+body.dark-mode .reports-table th,
+body.dark-mode .reports-table td {
+    border-color: var(--border);
+}
+
+body.dark-mode .reports-table tbody tr:hover,
+body.dark-mode .reports-quick-item:hover {
+    background: rgba(109, 76, 255, 0.12);
+}
+
+body.dark-mode .reports-quick-item {
+    color: var(--text);
+}
+
+body.dark-mode .reports-page-btn,
+body.dark-mode .reports-preview-close {
+    background: var(--input);
+    color: var(--text);
+    border-color: var(--border);
+}
+
+body.dark-mode .reports-page-btn:hover,
+body.dark-mode .reports-preview-close:hover,
+body.dark-mode .reports-icon-btn:hover,
+body.dark-mode .reports-preview-btn:hover,
+body.dark-mode .reports-preview-secondary:hover {
+    background: rgba(109, 76, 255, 0.16);
+}
+
+body.dark-mode .reports-pdf-section,
+body.dark-mode .reports-pdf-metrics div {
+    background: var(--card-soft);
+    border-color: var(--border);
+}
+
+body.dark-mode .reports-pdf-tags span {
+    background: rgba(139, 92, 246, 0.20);
+    color: #ddd6fe;
+}
+
+body.dark-mode .reports-select option {
+    background: var(--input);
+    color: var(--text);
+}
+
+body.dark-mode .reports-tone-purple {
+    background: rgba(167, 139, 250, 0.20);
+    color: #c4b5fd;
+}
+
+body.dark-mode .reports-tone-blue {
+    background: rgba(96, 165, 250, 0.20);
+    color: #93c5fd;
+}
+
+body.dark-mode .reports-tone-green {
+    background: rgba(74, 222, 128, 0.18);
+    color: #86efac;
+}
+
+body.dark-mode .reports-tone-violet {
+    background: rgba(167, 139, 250, 0.20);
+    color: #ddd6fe;
+}
+
+body.dark-mode .reports-tone-red {
+    background: rgba(248, 113, 113, 0.18);
+    color: #fca5a5;
+}
+
+body.dark-mode .reports-tone-orange {
+    background: rgba(251, 191, 36, 0.18);
+    color: #fcd34d;
+}
+
+body.dark-mode .reports-grid-line {
+    stroke: rgba(226, 232, 240, 0.16);
+}
+
+body.dark-mode .reports-bar {
+    fill: rgba(96, 165, 250, 0.72);
+}
+
+body.dark-mode .reports-line {
+    stroke: #a78bfa;
+}
+
+body.dark-mode .reports-point {
+    fill: #ddd6fe;
 }

@@ -1,3 +1,5 @@
+import { resetThemePreference } from "../theme/theme";
+
 export type UserRole = "SYSTEM_ADMIN" | "LAB_ASSISTANT";
 
 export const ROLE_LABELS: Record<UserRole, string> = {
@@ -27,4 +29,5 @@ export function getDashboardPath(role: UserRole | null): string {
 export function clearSession() {
     localStorage.removeItem("rc_token");
     localStorage.removeItem("rc_role");
+    resetThemePreference();
 }

@@ -505,6 +505,92 @@ body {
     color: var(--muted);
 }
 
+.dashboard-camera-frame {
+    margin-bottom: 14px;
+}
+
+.dashboard-camera-frame .image-preview {
+    border: none;
+    border-radius: 0;
+}
+
+.camera-feed-frame {
+    position: relative;
+    overflow: hidden;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    background: #0b1220;
+}
+
+.camera-feed-image-hidden {
+    opacity: 0;
+}
+
+.camera-feed-fallback {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    text-align: center;
+    background: var(--card-soft);
+    color: var(--muted);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.camera-feed-overlay {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    background: rgba(11, 18, 32, 0.72);
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 8px 12px;
+    border-radius: 12px;
+}
+
+.camera-status-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 16px;
+    background: var(--card-soft);
+}
+
+.camera-status-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.camera-status-label {
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.camera-status-item strong {
+    font-size: 14px;
+    color: var(--text);
+}
+
+.camera-status-value.connected {
+    color: var(--green-text);
+}
+
+.camera-status-value.unavailable {
+    color: var(--red-text);
+}
+
+.camera-status-url strong {
+    overflow-wrap: anywhere;
+}
+
 /* PROFILE MENU */
 .profile-menu-wrapper {
     position: relative;
@@ -927,7 +1013,9 @@ body.dark-mode .simulation-chart-toggle {
 }
 
 body.dark-mode .tank-live-meta-grid,
+body.dark-mode .camera-status-grid,
 body.dark-mode .tank-live-meta-item,
+body.dark-mode .camera-status-item,
 body.dark-mode .weather-stats div,
 body.dark-mode .reports-input-icon,
 body.dark-mode .reports-select,
@@ -977,6 +1065,7 @@ body.dark-mode .simulation-summary-subtext,
 body.dark-mode .anomaly-item p,
 body.dark-mode .anomaly-time,
 body.dark-mode .tank-live-meta-label,
+body.dark-mode .camera-status-label,
 body.dark-mode .tank-panel-header p,
 body.dark-mode .tank-gallery-timestamp {
     color: var(--muted) !important;
@@ -1018,7 +1107,8 @@ body.dark-mode .tank-toggle-knob {
 body.dark-mode .anomaly-item,
 body.dark-mode .notification-item,
 body.dark-mode .forecast-recommendation-item,
-body.dark-mode .forecast-insight-item {
+body.dark-mode .forecast-insight-item,
+body.dark-mode .camera-feed-fallback {
     background: var(--card-soft) !important;
 }
 
@@ -1092,6 +1182,10 @@ body.dark-mode .notification-view-all:hover {
 
     .weather-card {
         align-items: stretch;
+    }
+
+    .camera-status-grid {
+        grid-template-columns: 1fr;
     }
 }
 

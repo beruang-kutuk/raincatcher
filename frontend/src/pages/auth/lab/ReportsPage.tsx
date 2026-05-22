@@ -54,6 +54,12 @@ type BenchmarkItem = {
     status: "good" | "moderate" | "attention";
 };
 
+type AutoTableDocument = jsPDF & {
+    lastAutoTable: {
+        finalY: number;
+    };
+};
+
 const summaryCards: SummaryCard[] = [
     {
         label: "Total Reports",
@@ -383,7 +389,7 @@ export default function ReportsPage() {
             },
         });
 
-        const firstTableEndY = (doc as any).lastAutoTable.finalY + 12;
+        const firstTableEndY = (doc as AutoTableDocument).lastAutoTable.finalY + 12;
 
         doc.setFont("helvetica", "bold");
         doc.setFontSize(13);
@@ -410,7 +416,7 @@ export default function ReportsPage() {
             },
         });
 
-        const secondTableEndY = (doc as any).lastAutoTable.finalY + 12;
+        const secondTableEndY = (doc as AutoTableDocument).lastAutoTable.finalY + 12;
 
         doc.setFont("helvetica", "bold");
         doc.setFontSize(13);

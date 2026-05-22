@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Bell, CloudRain, Droplets, ThermometerSun, Wind } from "lucide-react";
 import "../../../styles/dashboard.css";
-import tankImage from "../../../assets/images/msu-camera.jpeg";
 import Sidebar from "../../../components/layout/Sidebar";
 import ProfileMenu from "../../../components/layout/ProfileMenu";
+import RpiCameraFeed from "../../../components/lab/RpiCameraFeed";
 
 type StatCardData = {
     title: string;
@@ -38,14 +38,14 @@ const notifications: NotificationItem[] = [
     {
         id: 1,
         title: "Water Level Drop",
-        message: "Tank A dropped faster than expected.",
+        message: "Rainwater Tank dropped faster than expected.",
         time: "10:42 AM",
         severity: "high",
     },
     {
         id: 2,
         title: "Turbidity Spike",
-        message: "Tank B exceeded normal turbidity threshold.",
+        message: "Rainwater Tank exceeded normal turbidity threshold.",
         time: "09:15 AM",
         severity: "medium",
     },
@@ -82,14 +82,14 @@ const anomalies: AnomalyItem[] = [
     {
         id: 1,
         title: "Water Level Drop",
-        message: "Tank A dropped faster than expected.",
+        message: "Rainwater Tank dropped faster than expected.",
         severity: "high",
         time: "Today, 10:42 AM",
     },
     {
         id: 2,
         title: "Turbidity Spike",
-        message: "Tank B exceeded normal turbidity threshold.",
+        message: "Rainwater Tank exceeded normal turbidity threshold.",
         severity: "medium",
         time: "Today, 9:15 AM",
     },
@@ -324,23 +324,17 @@ export default function LabDashboardPage() {
                                 <section className="lab-card">
                                     <div className="section-header">
                                         <div>
-                                            <h2>Latest Tank Image</h2>
-                                            <p>Daily inspection snapshot</p>
+                                            <h2>Live Tank Camera</h2>
+                                            <p>Raspberry Pi webcam stream for current lab inspection</p>
                                         </div>
                                     </div>
 
                                     <div className="image-placeholder">
-                                        <img
-                                            src={tankImage}
-                                            alt="Tank camera"
-                                            className="image-preview"
+                                        <RpiCameraFeed
+                                            frameClassName="dashboard-camera-frame"
+                                            imageClassName="image-preview"
+                                            overlayLabel="Live Feed"
                                         />
-
-                                        <div className="image-meta">
-                                            <p><strong>Date:</strong> 21 Apr 2026</p>
-                                            <p><strong>Status:</strong> Normal</p>
-                                            <p><strong>Device:</strong> RC-01</p>
-                                        </div>
                                     </div>
                                 </section>
                             </div>

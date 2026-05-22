@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import LoginPage from "./pages/auth/LoginPage";
 import LabDashboardPage from "./pages/auth/lab/LabDashboardPage";
 import RequireAuth from "./routes/RequireAuth";
@@ -18,10 +18,16 @@ import {
   getStoredRole,
   type UserRole,
 } from "./auth/rbac";
+import {
+  applyThemePreference,
+  clearLegacyThemePreference,
+  getStoredThemePreference,
+} from "./theme/theme";
 
 const labRoles: UserRole[] = ["LAB_ASSISTANT"];
 const adminRoles: UserRole[] = ["SYSTEM_ADMIN"];
 const allRoles: UserRole[] = ["LAB_ASSISTANT", "SYSTEM_ADMIN"];
+const publicAuthRoutes = ["/login", "/signup", "/forgot-password"];
 
 function RoleRedirect() {
   const token = localStorage.getItem("rc_token");
@@ -32,19 +38,31 @@ function RoleRedirect() {
   return <Navigate to={getDashboardPath(role)} replace />;
 }
 
-export default function App() {
+function ThemeRouteSync() {
+  const location = useLocation();
+
   useEffect(() => {
-    const savedTheme = localStorage.getItem("theme");
+    const token = localStorage.getItem("rc_token");
+    const role = getStoredRole();
+    const isPublicAuthRoute = publicAuthRoutes.includes(location.pathname);
 
-    if (savedTheme === "dark") {
-      document.body.classList.add("dark-mode");
-    } else {
-      document.body.classList.remove("dark-mode");
+    clearLegacyThemePreference();
+
+    if (isPublicAuthRoute || !token || !role) {
+      applyThemePreference("light");
+      return;
     }
-  }, []);
 
+    applyThemePreference(getStoredThemePreference());
+  }, [location.pathname]);
+
+  return null;
+}
+
+export default function App() {
   return (
     <BrowserRouter>
+      <ThemeRouteSync />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
 

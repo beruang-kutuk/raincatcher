@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import {
     ShieldCheck,
     SlidersHorizontal,
@@ -135,6 +135,7 @@ export default function AccessControlPage() {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [selectedRole, setSelectedRole] = useState(rolePolicies[0]);
     const [users, setUsers] = useState<UserAccessRow[]>(initialUserAccessRows);
+    const [expandedUserId, setExpandedUserId] = useState<number | null>(null);
     const [newUser, setNewUser] = useState<NewUserForm>({
         name: "",
         email: "",
@@ -320,98 +321,132 @@ export default function AccessControlPage() {
                                 <div className="admin-panel-header">
                                     <div>
                                         <h2>Manage Lab Users</h2>
-                                        <p>Change role, scope, and account status from one table.</p>
+                                        <p>Review users, adjust access details, and suspend accounts.</p>
                                     </div>
                                     <Users size={20} />
                                 </div>
 
-                                <div className="admin-table-wrap">
+                                <div className="admin-table-wrap admin-user-table-wrap">
                                     <table className="admin-table admin-user-table">
                                         <thead>
                                             <tr>
                                                 <th>Name</th>
-                                                <th>Email</th>
                                                 <th>Role</th>
-                                                <th>Scope</th>
-                                                <th>Status</th>
-                                                <th>Action</th>
+                                                <th>Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {users.map((row) => {
                                                 const isSuperAdmin = row.role === "SYSTEM_ADMIN";
+                                                const isExpanded = expandedUserId === row.id;
 
                                                 return (
-                                                    <tr key={row.id}>
-                                                        <td>{row.name}</td>
-                                                        <td>{row.email}</td>
-                                                        <td>
-                                                            {isSuperAdmin ? (
-                                                                <span className="admin-role-lock">
-                                                                    {roleLabels[row.role]}
-                                                                </span>
-                                                            ) : (
-                                                                <select
-                                                                    className="admin-inline-select"
-                                                                    value={row.role}
-                                                                    onChange={(event) =>
-                                                                        updateUserAccess(row.id, "role", event.target.value)
-                                                                    }
-                                                                >
-                                                                    <option value="LAB_ASSISTANT">Lab Assistant</option>
-                                                                    <option value="VIEWER">Viewer</option>
-                                                                </select>
-                                                            )}
-                                                        </td>
-                                                        <td>
-                                                            {isSuperAdmin ? (
-                                                                row.accessScope
-                                                            ) : (
-                                                                <select
-                                                                    className="admin-inline-select wide"
-                                                                    value={row.accessScope}
-                                                                    onChange={(event) =>
-                                                                        updateUserAccess(row.id, "accessScope", event.target.value)
-                                                                    }
-                                                                >
-                                                                    {scopeOptions.map((scope) => (
-                                                                        <option key={scope} value={scope}>
-                                                                            {scope}
-                                                                        </option>
-                                                                    ))}
-                                                                </select>
-                                                            )}
-                                                        </td>
-                                                        <td>
-                                                            {isSuperAdmin ? (
-                                                                <span className={`admin-status-pill ${getAccessStatusClass(row.status)}`}>
-                                                                    {row.status}
-                                                                </span>
-                                                            ) : (
-                                                                <select
-                                                                    className={`admin-inline-select status ${getAccessStatusClass(row.status)}`}
-                                                                    value={row.status}
-                                                                    onChange={(event) =>
-                                                                        updateUserAccess(row.id, "status", event.target.value)
-                                                                    }
-                                                                >
-                                                                    <option value="active">Active</option>
-                                                                    <option value="limited">Limited</option>
-                                                                    <option value="suspended">Suspended</option>
-                                                                </select>
-                                                            )}
-                                                        </td>
-                                                        <td>
-                                                            <button
-                                                                type="button"
-                                                                className="admin-text-btn"
-                                                                disabled={isSuperAdmin}
-                                                                onClick={() => toggleUserSuspension(row.id)}
-                                                            >
-                                                                {row.status === "suspended" ? "Reactivate" : "Suspend"}
-                                                            </button>
-                                                        </td>
-                                                    </tr>
+                                                    <Fragment key={row.id}>
+                                                        <tr>
+                                                            <td>
+                                                                <div className="admin-user-cell">
+                                                                    <strong>{row.name}</strong>
+                                                                    <span>{row.email}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td>
+                                                                <div className="admin-role-cell">
+                                                                    {isSuperAdmin ? (
+                                                                        <span className="admin-role-lock">
+                                                                            {roleLabels[row.role]}
+                                                                        </span>
+                                                                    ) : (
+                                                                        <select
+                                                                            className="admin-inline-select"
+                                                                            value={row.role}
+                                                                            onChange={(event) =>
+                                                                                updateUserAccess(row.id, "role", event.target.value)
+                                                                            }
+                                                                        >
+                                                                            <option value="LAB_ASSISTANT">Lab Assistant</option>
+                                                                            <option value="VIEWER">Viewer</option>
+                                                                        </select>
+                                                                    )}
+
+                                                                    <span className={`admin-status-pill ${getAccessStatusClass(row.status)}`}>
+                                                                        {row.status}
+                                                                    </span>
+                                                                </div>
+                                                            </td>
+                                                            <td>
+                                                                <div className="admin-actions-cell">
+                                                                    <button
+                                                                        type="button"
+                                                                        className="admin-text-btn"
+                                                                        onClick={() =>
+                                                                            setExpandedUserId((current) =>
+                                                                                current === row.id ? null : row.id,
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        {isExpanded ? "Hide" : "View / Edit"}
+                                                                    </button>
+
+                                                                    <button
+                                                                        type="button"
+                                                                        className="admin-text-btn"
+                                                                        disabled={isSuperAdmin}
+                                                                        onClick={() => toggleUserSuspension(row.id)}
+                                                                    >
+                                                                        {row.status === "suspended" ? "Activate" : "Suspend"}
+                                                                    </button>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+
+                                                        {isExpanded && (
+                                                            <tr className="admin-user-detail-row">
+                                                                <td colSpan={3}>
+                                                                    <div className="admin-user-detail">
+                                                                        <div>
+                                                                            <span>Access Scope</span>
+                                                                            {isSuperAdmin ? (
+                                                                                <strong>{row.accessScope}</strong>
+                                                                            ) : (
+                                                                                <select
+                                                                                    className="admin-inline-select wide"
+                                                                                    value={row.accessScope}
+                                                                                    onChange={(event) =>
+                                                                                        updateUserAccess(row.id, "accessScope", event.target.value)
+                                                                                    }
+                                                                                >
+                                                                                    {scopeOptions.map((scope) => (
+                                                                                        <option key={scope} value={scope}>
+                                                                                            {scope}
+                                                                                        </option>
+                                                                                    ))}
+                                                                                </select>
+                                                                            )}
+                                                                        </div>
+
+                                                                        <div>
+                                                                            <span>Account Status</span>
+                                                                            {isSuperAdmin ? (
+                                                                                <strong>{row.status}</strong>
+                                                                            ) : (
+                                                                                <select
+                                                                                    className={`admin-inline-select status ${getAccessStatusClass(row.status)}`}
+                                                                                    value={row.status}
+                                                                                    onChange={(event) =>
+                                                                                        updateUserAccess(row.id, "status", event.target.value)
+                                                                                    }
+                                                                                >
+                                                                                    <option value="active">Active</option>
+                                                                                    <option value="limited">Limited</option>
+                                                                                    <option value="suspended">Suspended</option>
+                                                                                </select>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        )}
+                                                    </Fragment>
                                                 );
                                             })}
                                         </tbody>

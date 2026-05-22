@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../../styles/dashboard.css";
 import "../../styles/settings.css";
@@ -8,6 +8,11 @@ import {
     getStoredRole,
     ROLE_LABELS,
 } from "../../auth/rbac";
+import {
+    getStoredThemePreference,
+    saveThemePreference,
+    type ThemePreference,
+} from "../../theme/theme";
 
 const profileByRole = {
     LAB_ASSISTANT: {
@@ -25,32 +30,13 @@ const profileByRole = {
 export default function SettingsPage() {
     const navigate = useNavigate();
     const [sidebarOpen, setSidebarOpen] = useState(true);
-    const [theme, setTheme] = useState<"light" | "dark">("light");
+    const [theme, setTheme] = useState<ThemePreference>(() => getStoredThemePreference());
     const role = getStoredRole() ?? "LAB_ASSISTANT";
     const profile = profileByRole[role];
 
-    useEffect(() => {
-        const savedTheme = localStorage.getItem("theme");
-
-        if (savedTheme === "dark") {
-            document.body.classList.add("dark-mode");
-            setTheme("dark");
-        } else {
-            document.body.classList.remove("dark-mode");
-            setTheme("light");
-        }
-    }, []);
-
-    function handleThemeChange(value: "light" | "dark") {
+    function handleThemeChange(value: ThemePreference) {
         setTheme(value);
-
-        if (value === "dark") {
-            document.body.classList.add("dark-mode");
-            localStorage.setItem("theme", "dark");
-        } else {
-            document.body.classList.remove("dark-mode");
-            localStorage.setItem("theme", "light");
-        }
+        saveThemePreference(value);
     }
 
     function handleLogout() {
@@ -103,7 +89,7 @@ export default function SettingsPage() {
                                     <select
                                         value={theme}
                                         onChange={(e) =>
-                                            handleThemeChange(e.target.value as "light" | "dark")
+                                            handleThemeChange(e.target.value as ThemePreference)
                                         }
                                     >
                                         <option value="light">Light</option>

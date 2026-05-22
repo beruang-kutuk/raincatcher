@@ -93,6 +93,7 @@
     overflow: hidden;
     margin-bottom: 16px;
     border: 1px solid var(--border);
+    background: #0b1220;
 }
 
 .tank-live-image {
