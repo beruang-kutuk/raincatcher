@@ -1,183 +1,672 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
     Activity,
     AlertTriangle,
-    Droplets,
+    Camera,
+    ClipboardList,
+    CloudRain,
+    Cpu,
+    Eye,
     Gauge,
+    History,
+    RefreshCcw,
+    Settings,
     ShieldCheck,
     SlidersHorizontal,
-    ThermometerSun,
+    Wrench,
+    X,
 } from "lucide-react";
 import "../../../styles/dashboard.css";
 import "../../../styles/admin.css";
 import Sidebar from "../../../components/layout/Sidebar";
-import ProfileMenu from "../../../components/layout/ProfileMenu";
+import AdminTopbar from "../../../components/layout/AdminTopbar";
+import { RPI_CAMERA_STREAM_URL } from "../../../config/camera";
+import {
+    RAINWATER_TANK_NAME,
+    auditLogs,
+    deviceRows,
+    diagnosticCards,
+    forecastSettings,
+    reportTemplateSections,
+    systemHealthMetrics,
+    thresholdSettings,
+    type AdminStatus,
+    type DeviceStatus,
+} from "../../../services/adminData";
 
-type ThresholdStatus = "ready" | "draft" | "missing";
-type SensorStatus = "active" | "offline" | "maintenance";
-type SimulationMode = "normal" | "warning" | "critical" | "ph-only";
+type AdminSection =
+    | "overview"
+    | "devices"
+    | "health"
+    | "thresholds"
+    | "forecast"
+    | "reports"
+    | "diagnostics"
+    | "audit";
 
-type ThresholdRule = {
-    id: number;
-    metric: string;
-    unit: string;
-    normalRange: string;
-    warningRange: string;
-    criticalRule: string;
-    status: ThresholdStatus;
-    icon: React.ReactNode;
-};
-
-type SensorRegistryRow = {
-    id: number;
-    tank: string;
-    sensor: string;
-    location: string;
-    lastReading: string;
-    status: SensorStatus;
-};
-
-type ThresholdField = "normalRange" | "warningRange" | "criticalRule";
-
-const initialThresholdRules: ThresholdRule[] = [
-    {
-        id: 1,
-        metric: "Water Level",
-        unit: "%",
-        normalRange: "50 - 90",
-        warningRange: "30 - 49 or 91 - 95",
-        criticalRule: "< 30 or > 95",
-        status: "draft",
-        icon: <Droplets size={20} />,
-    },
-    {
-        id: 2,
-        metric: "pH",
-        unit: "pH",
-        normalRange: "6.5 - 8.5",
-        warningRange: "6.0 - 6.4 or 8.6 - 9.0",
-        criticalRule: "< 6.0 or > 9.0",
-        status: "ready",
-        icon: <Gauge size={20} />,
-    },
-    {
-        id: 3,
-        metric: "Turbidity",
-        unit: "NTU",
-        normalRange: "0 - 5",
-        warningRange: "5.1 - 15",
-        criticalRule: "> 15",
-        status: "missing",
-        icon: <Activity size={20} />,
-    },
-    {
-        id: 4,
-        metric: "Temperature",
-        unit: "C",
-        normalRange: "24 - 32",
-        warningRange: "20 - 23 or 33 - 36",
-        criticalRule: "< 20 or > 36",
-        status: "draft",
-        icon: <ThermometerSun size={20} />,
-    },
-];
-
-const sensorRegistry: SensorRegistryRow[] = [
-    {
-        id: 1,
-        tank: "Tank A",
-        sensor: "Water Level Sensor",
-        location: "Campus Pilot Site",
-        lastReading: "76%",
-        status: "active",
-    },
-    {
-        id: 2,
-        tank: "Tank A",
-        sensor: "pH Probe",
-        location: "Campus Pilot Site",
-        lastReading: "7.2 pH",
-        status: "active",
-    },
-    {
-        id: 3,
-        tank: "Tank B",
-        sensor: "Turbidity Sensor",
-        location: "Campus Pilot Site",
-        lastReading: "18.9 NTU",
-        status: "maintenance",
-    },
-    {
-        id: 4,
-        tank: "Calibration Unit",
-        sensor: "Temperature Sensor",
-        location: "Lab Bench",
-        lastReading: "Offline",
-        status: "offline",
-    },
-];
-
-const simulationModes: Array<{
-    value: SimulationMode;
+const sectionNav: Array<{
+    id: AdminSection;
     label: string;
+    path: string;
     description: string;
 }> = [
     {
-        value: "normal",
-        label: "Normal",
-        description: "Generate stable readings inside safe thresholds.",
+        id: "overview",
+        label: "System Overview",
+        path: "/admin/system",
+        description: "Summary of system controls and current integration readiness.",
     },
     {
-        value: "warning",
-        label: "Warning",
-        description: "Generate edge-case readings for dashboard testing.",
+        id: "devices",
+        label: "Device Management",
+        path: "/admin/devices",
+        description: "Raspberry Pi, camera, ESP32, and sensor registry.",
     },
     {
-        value: "critical",
-        label: "Critical",
-        description: "Generate anomaly-heavy readings for alert workflows.",
+        id: "health",
+        label: "System Health",
+        path: "/admin/system-health",
+        description: "Gateway, storage, camera, API, and database health.",
     },
     {
-        value: "ph-only",
-        label: "pH Only",
-        description: "Match the current lab state where pH is the only real dataset.",
+        id: "thresholds",
+        label: "Thresholds",
+        path: "/admin/thresholds",
+        description: "System-wide anomaly and warning limits.",
+    },
+    {
+        id: "forecast",
+        label: "Forecast Settings",
+        path: "/admin/forecast-settings",
+        description: "Default assumptions for forecasting modules.",
+    },
+    {
+        id: "reports",
+        label: "Report Templates",
+        path: "/admin/report-templates",
+        description: "Default sections for generated reports.",
+    },
+    {
+        id: "diagnostics",
+        label: "Diagnostics",
+        path: "/admin/diagnostics",
+        description: "Troubleshooting checks and repair action placeholders.",
+    },
+    {
+        id: "audit",
+        label: "Audit Logs",
+        path: "/admin/audit-logs",
+        description: "Activity trail structure for user and system events.",
     },
 ];
 
-function getThresholdStatusClass(status: ThresholdStatus) {
-    if (status === "missing") return "admin-status-critical";
-    if (status === "draft") return "admin-status-warning";
+function getSectionFromPath(pathname: string): AdminSection {
+    const match = sectionNav.find((item) => item.path === pathname);
+    return match?.id ?? "overview";
+}
+
+function getAdminStatusClass(status: AdminStatus) {
+    if (status === "critical") return "admin-status-critical";
+    if (status === "warning") return "admin-status-warning";
     return "admin-status-normal";
 }
 
-function getSensorStatusClass(status: SensorStatus) {
-    if (status === "offline") return "admin-status-critical";
-    if (status === "maintenance") return "admin-status-warning";
+function getDeviceStatusClass(status: DeviceStatus) {
+    if (status === "Offline") return "admin-status-critical";
+    if (status === "Pending" || status === "Warning") return "admin-status-warning";
     return "admin-status-normal";
+}
+
+function StatusPill({ status }: { status: AdminStatus | DeviceStatus }) {
+    const className =
+        status === "Online" || status === "Offline" || status === "Pending" || status === "Warning"
+            ? getDeviceStatusClass(status)
+            : getAdminStatusClass(status);
+
+    return <span className={`admin-status-pill ${className}`}>{status}</span>;
+}
+
+function SectionHeader({
+    title,
+    description,
+    icon,
+}: {
+    title: string;
+    description: string;
+    icon: React.ReactNode;
+}) {
+    return (
+        <div className="admin-panel-header">
+            <div>
+                <h2>{title}</h2>
+                <p>{description}</p>
+            </div>
+            {icon}
+        </div>
+    );
 }
 
 export default function SystemAdminPage() {
     const [sidebarOpen, setSidebarOpen] = useState(true);
-    const [thresholdRules, setThresholdRules] = useState(initialThresholdRules);
-    const [simulationMode, setSimulationMode] = useState<SimulationMode>("normal");
-    const [autoGenerate, setAutoGenerate] = useState(true);
+    const location = useLocation();
+    const navigate = useNavigate();
+    const activeSection = getSectionFromPath(location.pathname);
+    const activeMeta = sectionNav.find((item) => item.id === activeSection) ?? sectionNav[0];
+    const [thresholdValues, setThresholdValues] = useState(() =>
+        Object.fromEntries(thresholdSettings.map((setting) => [setting.id, setting.value])),
+    );
+    const [forecastValues, setForecastValues] = useState(() =>
+        Object.fromEntries(forecastSettings.map((setting) => [setting.id, setting.value])),
+    );
+    const [reportSections, setReportSections] = useState(reportTemplateSections);
+    const [diagnosticMessage, setDiagnosticMessage] = useState("Diagnostics ready. Actions are prepared for backend integration.");
+    const [saveMessage, setSaveMessage] = useState("");
+    const [viewDevice, setViewDevice] = useState<typeof deviceRows[0] | null>(null);
+    const [manageDevice, setManageDevice] = useState<typeof deviceRows[0] | null>(null);
+    const [manageStatus, setManageStatus] = useState("");
+    const [manageSensorTag, setManageSensorTag] = useState("");
+    const [manageActionMsg, setManageActionMsg] = useState("");
 
-    function updateThreshold(
-        id: number,
-        field: ThresholdField,
-        value: string,
-    ) {
-        setThresholdRules((prev) =>
-            prev.map((item) =>
-                item.id === id
-                    ? {
-                        ...item,
-                        [field]: value,
-                        status: item.status === "missing" ? "draft" : item.status,
-                    }
-                    : item
-            )
+    const onlineDevices = useMemo(
+        () => deviceRows.filter((device) => device.status === "Online").length,
+        [],
+    );
+    const warningDevices = useMemo(
+        () => deviceRows.filter((device) => device.status === "Warning" || device.status === "Pending").length,
+        [],
+    );
+
+    function renderOverview() {
+        return (
+            <>
+                <div className="admin-summary-grid">
+                    <article className="admin-summary-card">
+                        <div className="admin-summary-top">
+                            <div className="admin-summary-icon admin-status-normal">
+                                <Cpu size={22} />
+                            </div>
+                            <span className="admin-status-pill admin-status-normal">devices</span>
+                        </div>
+                        <p className="admin-summary-label">Online Devices</p>
+                        <h3 className="admin-summary-value">{onlineDevices} / {deviceRows.length}</h3>
+                        <p className="admin-summary-meta">
+                            {warningDevices} devices need admin review or calibration.
+                        </p>
+                    </article>
+
+                    <article className="admin-summary-card">
+                        <div className="admin-summary-top">
+                            <div className="admin-summary-icon admin-status-warning">
+                                <SlidersHorizontal size={22} />
+                            </div>
+                            <span className="admin-status-pill admin-status-warning">pending</span>
+                        </div>
+                        <p className="admin-summary-label">Threshold Rules</p>
+                        <h3 className="admin-summary-value">{thresholdSettings.length}</h3>
+                        <p className="admin-summary-meta">
+                            Rules prepared for anomaly backend integration.
+                        </p>
+                    </article>
+
+                    <article className="admin-summary-card">
+                        <div className="admin-summary-top">
+                            <div className="admin-summary-icon admin-status-normal">
+                                <CloudRain size={22} />
+                            </div>
+                            <span className="admin-status-pill admin-status-normal">forecast</span>
+                        </div>
+                        <p className="admin-summary-label">Forecast Defaults</p>
+                        <h3 className="admin-summary-value">{forecastSettings.length}</h3>
+                        <p className="admin-summary-meta">
+                            Default system assumptions are separated from Lab Assistant what-if runs.
+                        </p>
+                    </article>
+
+                    <article className="admin-summary-card">
+                        <div className="admin-summary-top">
+                            <div className="admin-summary-icon admin-status-normal">
+                                <History size={22} />
+                            </div>
+                            <span className="admin-status-pill admin-status-normal">audit</span>
+                        </div>
+                        <p className="admin-summary-label">Audit Events</p>
+                        <h3 className="admin-summary-value">{auditLogs.length}</h3>
+                        <p className="admin-summary-meta">
+                            Audit structure covers login, role, threshold, reports, and camera access.
+                        </p>
+                    </article>
+                </div>
+
+                <div className="admin-grid admin-grid-balanced">
+                    <section className="admin-panel">
+                        <SectionHeader
+                            title="System Control Areas"
+                            description="Open a focused admin section from the navigation or the controls below."
+                            icon={<ShieldCheck size={20} />}
+                        />
+
+                        <div className="admin-control-link-grid">
+                            {sectionNav.filter((item) => item.id !== "overview").map((item) => (
+                                <button
+                                    key={item.id}
+                                    type="button"
+                                    className="admin-control-link"
+                                    onClick={() => navigate(item.path)}
+                                >
+                                    <strong>{item.label}</strong>
+                                    <span>{item.description}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </section>
+
+                    <section className="admin-panel">
+                        <SectionHeader
+                            title="Current Alerts"
+                            description="Priorities for the Rainwater Tank integration path."
+                            icon={<AlertTriangle size={20} />}
+                        />
+
+                        <div className="admin-task-list">
+                            <article className="admin-task-item">
+                                <span className="admin-task-marker admin-status-warning" />
+                                <div>
+                                    <div className="admin-task-top">
+                                        <h3>ESP32 telemetry delay</h3>
+                                        <StatusPill status="Warning" />
+                                    </div>
+                                    <p>Sensor node last data arrived later than expected.</p>
+                                </div>
+                            </article>
+
+                            <article className="admin-task-item">
+                                <span className="admin-task-marker admin-status-warning" />
+                                <div>
+                                    <div className="admin-task-top">
+                                        <h3>Water temperature sensor pending</h3>
+                                        <StatusPill status="Pending" />
+                                    </div>
+                                    <p>Calibration step before live readings are trusted.</p>
+                                </div>
+                            </article>
+                        </div>
+                    </section>
+                </div>
+            </>
         );
+    }
+
+    function renderDevices() {
+        return (
+            <section className="admin-panel">
+                <SectionHeader
+                    title="Device and Sensor Management"
+                    description={`System-wide hardware registry for ${RAINWATER_TANK_NAME}. Actions are prepared until backend APIs are connected.`}
+                    icon={<Cpu size={20} />}
+                />
+
+                <div className="admin-table-wrap">
+                    <table className="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Device</th>
+                                <th>Category</th>
+                                <th>Status</th>
+                                <th>Last Seen</th>
+                                <th>Last Data Received</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {deviceRows.map((row) => (
+                                <tr key={row.id}>
+                                    <td>{row.name}</td>
+                                    <td>{row.category}</td>
+                                    <td><StatusPill status={row.status} /></td>
+                                    <td>{row.lastSeen}</td>
+                                    <td>{row.lastData}</td>
+                                    <td>
+                                        <div className="admin-actions-cell start">
+                                            <button
+                                                type="button"
+                                                className="admin-icon-btn"
+                                                title="View device details"
+                                                aria-label="View device details"
+                                                onClick={() => setViewDevice(row)}
+                                            >
+                                                <Eye size={15} />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="admin-icon-btn"
+                                                title="Manage device"
+                                                aria-label="Manage device"
+                                                onClick={() => {
+                                                    setManageDevice(row);
+                                                    setManageStatus(row.status);
+                                                    setManageSensorTag(row.inputTag ?? "");
+                                                    setManageActionMsg("");
+                                                }}
+                                            >
+                                                <Settings size={15} />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div className="admin-info-strip">
+                    <Camera size={18} />
+                    <div>
+                        <strong>Configured camera stream</strong>
+                        <span title={RPI_CAMERA_STREAM_URL}>{RPI_CAMERA_STREAM_URL}</span>
+                    </div>
+                </div>
+            </section>
+        );
+    }
+
+    function renderHealth() {
+        return (
+            <section className="admin-panel">
+                <SectionHeader
+                    title="System Health"
+                    description="Gateway and service health slots for the prototype."
+                    icon={<Activity size={20} />}
+                />
+
+                <div className="admin-health-grid">
+                    {systemHealthMetrics.map((metric) => (
+                        <article key={metric.label} className="admin-health-card">
+                            <div className="admin-health-card-top">
+                                <div>
+                                    <h3>{metric.label}</h3>
+                                    <strong>{metric.value}</strong>
+                                </div>
+                                <StatusPill status={metric.status} />
+                            </div>
+                            {typeof metric.progress === "number" && (
+                                <div className="admin-meter">
+                                    <span style={{ width: `${metric.progress}%` }} />
+                                </div>
+                            )}
+                            <p>{metric.helper}</p>
+                        </article>
+                    ))}
+                </div>
+            </section>
+        );
+    }
+
+    function renderThresholds() {
+        return (
+            <section className="admin-panel">
+                <SectionHeader
+                    title="Threshold Management"
+                    description="Admin-only system thresholds that will later drive anomaly detection."
+                    icon={<Gauge size={20} />}
+                />
+
+                <div className="admin-settings-grid">
+                    {thresholdSettings.map((setting) => (
+                        <label key={setting.id} className="admin-field">
+                            {setting.label}
+                            <div className="admin-input-with-unit">
+                                <input
+                                    value={thresholdValues[setting.id]}
+                                    onChange={(event) =>
+                                        setThresholdValues((prev) => ({
+                                            ...prev,
+                                            [setting.id]: event.target.value,
+                                        }))
+                                    }
+                                />
+                                <span>{setting.unit}</span>
+                            </div>
+                            <small>{setting.helper}</small>
+                        </label>
+                    ))}
+                </div>
+
+                <button
+                    className="admin-primary-btn"
+                    type="button"
+                    onClick={() => setSaveMessage("Threshold settings saved locally. Backend settings API is ready to connect later.")}
+                >
+                    Save Thresholds
+                </button>
+            </section>
+        );
+    }
+
+    function renderForecast() {
+        return (
+            <section className="admin-panel">
+                <SectionHeader
+                    title="Forecast Settings"
+                    description="System-wide assumptions used by forecast modules. Lab Assistants can run what-if simulations without saving these."
+                    icon={<CloudRain size={20} />}
+                />
+
+                <div className="admin-settings-grid">
+                    {forecastSettings.map((setting) => (
+                        <label key={setting.id} className="admin-field">
+                            {setting.label}
+                            {setting.kind === "select" ? (
+                                <select
+                                    value={forecastValues[setting.id]}
+                                    onChange={(event) =>
+                                        setForecastValues((prev) => ({
+                                            ...prev,
+                                            [setting.id]: event.target.value,
+                                        }))
+                                    }
+                                >
+                                    {setting.options?.map((option) => (
+                                        <option key={option}>{option}</option>
+                                    ))}
+                                </select>
+                            ) : (
+                                <div className="admin-input-with-unit">
+                                    <input
+                                        value={forecastValues[setting.id]}
+                                        onChange={(event) =>
+                                            setForecastValues((prev) => ({
+                                                ...prev,
+                                                [setting.id]: event.target.value,
+                                            }))
+                                        }
+                                    />
+                                    {setting.unit && <span>{setting.unit}</span>}
+                                </div>
+                            )}
+                            <small>{setting.helper}</small>
+                        </label>
+                    ))}
+                </div>
+
+                <button
+                    className="admin-primary-btn"
+                    type="button"
+                    onClick={() => setSaveMessage("Forecast defaults saved locally. Backend forecast settings API is ready to connect later.")}
+                >
+                    Save Forecast Defaults
+                </button>
+            </section>
+        );
+    }
+
+    function renderReports() {
+        return (
+            <section className="admin-panel">
+                <SectionHeader
+                    title="Report Template Management"
+                    description="Default report sections for generated monitoring reports."
+                    icon={<ClipboardList size={20} />}
+                />
+
+                <div className="admin-template-list">
+                    {reportSections.map((section) => (
+                        <button
+                            key={section.id}
+                            type="button"
+                            className="admin-template-row"
+                            onClick={() =>
+                                setReportSections((prev) =>
+                                    prev.map((item) =>
+                                        item.id === section.id
+                                            ? { ...item, enabled: !item.enabled }
+                                            : item,
+                                    ),
+                                )
+                            }
+                            aria-pressed={section.enabled}
+                        >
+                            <span>
+                                <strong>{section.label}</strong>
+                                <small>{section.enabled ? "Included by default" : "Excluded by default"}</small>
+                            </span>
+                            <span className={`admin-toggle ${section.enabled ? "active" : ""}`}>
+                                <i />
+                            </span>
+                        </button>
+                    ))}
+                </div>
+
+                <button
+                    className="admin-primary-btn"
+                    type="button"
+                    onClick={() => setSaveMessage("Report template saved locally. Backend report template API is ready to connect later.")}
+                >
+                    Save Report Template
+                </button>
+            </section>
+        );
+    }
+
+    function renderDiagnostics() {
+        return (
+            <section className="admin-panel">
+                <SectionHeader
+                    title="Troubleshooting and Diagnostics"
+                    description="Diagnostic cards and repair controls for admin workflows."
+                    icon={<Wrench size={20} />}
+                />
+
+                <div className="admin-diagnostic-actions">
+                    <button
+                        className="admin-primary-btn"
+                        type="button"
+                        onClick={() => setDiagnosticMessage("Diagnostics queued for all prepared services.")}
+                    >
+                        Run Diagnostics
+                    </button>
+                    <button
+                        className="admin-secondary-btn"
+                        type="button"
+                        onClick={() => setDiagnosticMessage("Camera feed restart action queued.")}
+                    >
+                        Restart Camera Feed
+                    </button>
+                    <button
+                        className="admin-secondary-btn"
+                        type="button"
+                        onClick={() => setDiagnosticMessage("Sensor connection refresh action queued.")}
+                    >
+                        Refresh Sensor Connection
+                    </button>
+                    <button
+                        className="admin-secondary-btn"
+                        type="button"
+                        onClick={() => setDiagnosticMessage("Log export action queued.")}
+                    >
+                        Export Logs
+                    </button>
+                </div>
+
+                <div className="admin-info-strip">
+                    <RefreshCcw size={18} />
+                    <div>
+                        <strong>Status</strong>
+                        <span>{diagnosticMessage}</span>
+                    </div>
+                </div>
+
+                <div className="admin-diagnostic-grid">
+                    {diagnosticCards.map((card) => (
+                        <article key={card.id} className="admin-diagnostic-card">
+                            <div className="admin-task-top">
+                                <h3>{card.title}</h3>
+                                <StatusPill status={card.status} />
+                            </div>
+                            <p>{card.description}</p>
+                        </article>
+                    ))}
+                </div>
+            </section>
+        );
+    }
+
+    function renderAudit() {
+        return (
+            <section className="admin-panel">
+                <SectionHeader
+                    title="Audit Logs"
+                    description="Audit log structure for role, threshold, report, forecast, anomaly, and camera activity."
+                    icon={<History size={20} />}
+                />
+
+                <div className="admin-table-wrap">
+                    <table className="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Event</th>
+                                <th>Actor</th>
+                                <th>Target</th>
+                                <th>Timestamp</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {auditLogs.map((row) => (
+                                <tr key={row.id}>
+                                    <td>{row.event}</td>
+                                    <td>{row.actor}</td>
+                                    <td>{row.target}</td>
+                                    <td>{row.timestamp}</td>
+                                    <td><StatusPill status={row.status} /></td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        );
+    }
+
+    function renderActiveSection() {
+        switch (activeSection) {
+            case "devices":
+                return renderDevices();
+            case "health":
+                return renderHealth();
+            case "thresholds":
+                return renderThresholds();
+            case "forecast":
+                return renderForecast();
+            case "reports":
+                return renderReports();
+            case "diagnostics":
+                return renderDiagnostics();
+            case "audit":
+                return renderAudit();
+            default:
+                return renderOverview();
+        }
     }
 
     return (
@@ -190,271 +679,169 @@ export default function SystemAdminPage() {
             <div className="content-shell">
                 <main className="dashboard-content-scroll">
                     <div className="admin-page page-container">
-                        <div className="admin-topbar">
-                            <div>
-                                <span className="admin-kicker">Configuration</span>
-                                <h1 className="admin-page-title">System Admin</h1>
-                                <p className="admin-page-subtitle">
-                                    Prepare threshold rules, mock telemetry, registry data,
-                                    reports, and benchmarking before the IoT feed is connected.
-                                </p>
-                            </div>
+                        <AdminTopbar
+                            kicker="Admin System Controls"
+                            title={activeMeta.label}
+                            subtitle={activeMeta.description}
+                            inlineMessage={saveMessage}
+                            secondaryAction={
+                                <button className="admin-secondary-btn" type="button">Integration Ready</button>
+                            }
+                        />
 
-                            <div className="dashboard-actions">
-                                <button className="admin-primary-btn" type="button">
-                                    Save Mock Config
+                        <div className="admin-section-tabs">
+                            {sectionNav.map((item) => (
+                                <button
+                                    key={item.id}
+                                    type="button"
+                                    className={`admin-section-tab ${activeSection === item.id ? "active" : ""}`}
+                                    onClick={() => navigate(item.path)}
+                                >
+                                    {item.label}
                                 </button>
-                                <ProfileMenu />
-                            </div>
+                            ))}
                         </div>
 
-                        <section className="admin-panel admin-threshold-panel">
-                            <div className="admin-panel-header">
-                                <div>
-                                    <h2>Threshold Rules</h2>
-                                    <p>
-                                        These values will later drive anomaly detection,
-                                        water quality scoring, and report flags.
-                                    </p>
-                                </div>
-                                <SlidersHorizontal size={20} />
-                            </div>
-
-                            <div className="admin-threshold-grid">
-                                {thresholdRules.map((rule) => (
-                                    <article key={rule.id} className="admin-threshold-card">
-                                        <div className="admin-threshold-card-header">
-                                            <div className="admin-threshold-title">
-                                                <span>{rule.icon}</span>
-                                                <div>
-                                                    <h3>{rule.metric}</h3>
-                                                    <p>Unit: {rule.unit}</p>
-                                                </div>
-                                            </div>
-                                            <span className={`admin-status-pill ${getThresholdStatusClass(rule.status)}`}>
-                                                {rule.status}
-                                            </span>
-                                        </div>
-
-                                        <label className="admin-field">
-                                            Normal range
-                                            <input
-                                                value={rule.normalRange}
-                                                onChange={(event) =>
-                                                    updateThreshold(rule.id, "normalRange", event.target.value)
-                                                }
-                                            />
-                                        </label>
-
-                                        <label className="admin-field">
-                                            Warning range
-                                            <input
-                                                value={rule.warningRange}
-                                                onChange={(event) =>
-                                                    updateThreshold(rule.id, "warningRange", event.target.value)
-                                                }
-                                            />
-                                        </label>
-
-                                        <label className="admin-field">
-                                            Critical rule
-                                            <input
-                                                value={rule.criticalRule}
-                                                onChange={(event) =>
-                                                    updateThreshold(rule.id, "criticalRule", event.target.value)
-                                                }
-                                            />
-                                        </label>
-                                    </article>
-                                ))}
-                            </div>
-                        </section>
-
-                        <div className="admin-grid admin-grid-balanced">
-                            <section className="admin-panel">
-                                <div className="admin-panel-header">
-                                    <div>
-                                        <h2>Tank & Sensor Registry</h2>
-                                        <p>Mock registry that can later map to real IoT devices.</p>
-                                    </div>
-                                    <ShieldCheck size={20} />
-                                </div>
-
-                                <div className="admin-table-wrap">
-                                    <table className="admin-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Tank</th>
-                                                <th>Sensor</th>
-                                                <th>Location</th>
-                                                <th>Last Reading</th>
-                                                <th>Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {sensorRegistry.map((row) => (
-                                                <tr key={row.id}>
-                                                    <td>{row.tank}</td>
-                                                    <td>{row.sensor}</td>
-                                                    <td>{row.location}</td>
-                                                    <td>{row.lastReading}</td>
-                                                    <td>
-                                                        <span className={`admin-status-pill ${getSensorStatusClass(row.status)}`}>
-                                                            {row.status}
-                                                        </span>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </section>
-
-                            <section className="admin-panel">
-                                <div className="admin-panel-header">
-                                    <div>
-                                        <h2>Telemetry Simulation</h2>
-                                        <p>Use mock readings until the hardware payload is ready.</p>
-                                    </div>
-                                    <Activity size={20} />
-                                </div>
-
-                                <div className="admin-mode-grid">
-                                    {simulationModes.map((mode) => (
-                                        <button
-                                            key={mode.value}
-                                            type="button"
-                                            className={`admin-mode-card ${simulationMode === mode.value ? "active" : ""}`}
-                                            onClick={() => setSimulationMode(mode.value)}
-                                        >
-                                            <strong>{mode.label}</strong>
-                                            <span>{mode.description}</span>
-                                        </button>
-                                    ))}
-                                </div>
-
-                                <div className="admin-toggle-row">
-                                    <div>
-                                        <h3>Auto-generate readings</h3>
-                                        <p>Simulate telemetry intervals for dashboard demos.</p>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        className={`admin-toggle ${autoGenerate ? "active" : ""}`}
-                                        onClick={() => setAutoGenerate((prev) => !prev)}
-                                        aria-label="Toggle mock telemetry generation"
-                                    >
-                                        <span />
-                                    </button>
-                                </div>
-
-                                <div className="admin-form-grid two">
-                                    <label className="admin-field">
-                                        Reading interval
-                                        <select defaultValue="10 minutes">
-                                            <option>5 minutes</option>
-                                            <option>10 minutes</option>
-                                            <option>15 minutes</option>
-                                            <option>30 minutes</option>
-                                        </select>
-                                    </label>
-
-                                    <label className="admin-field">
-                                        Default tank
-                                        <select defaultValue="Tank A">
-                                            <option>Tank A</option>
-                                            <option>Tank B</option>
-                                            <option>Tank C</option>
-                                            <option>All tanks</option>
-                                        </select>
-                                    </label>
-                                </div>
-                            </section>
-                        </div>
-
-                        <div className="admin-grid admin-grid-balanced">
-                            <section className="admin-panel">
-                                <div className="admin-panel-header">
-                                    <div>
-                                        <h2>Report Rules</h2>
-                                        <p>Controls for generated monitoring reports.</p>
-                                    </div>
-                                    <AlertTriangle size={20} />
-                                </div>
-
-                                <div className="admin-form-grid two">
-                                    <label className="admin-field">
-                                        Default report period
-                                        <select defaultValue="Monthly">
-                                            <option>Daily</option>
-                                            <option>Weekly</option>
-                                            <option>Monthly</option>
-                                        </select>
-                                    </label>
-
-                                    <label className="admin-field">
-                                        Include anomaly archive
-                                        <select defaultValue="Yes">
-                                            <option>Yes</option>
-                                            <option>No</option>
-                                        </select>
-                                    </label>
-
-                                    <label className="admin-field">
-                                        Water quality score target
-                                        <input defaultValue="85%" />
-                                    </label>
-
-                                    <label className="admin-field">
-                                        Minimum storage target
-                                        <input defaultValue="60%" />
-                                    </label>
-                                </div>
-                            </section>
-
-                            <section className="admin-panel">
-                                <div className="admin-panel-header">
-                                    <div>
-                                        <h2>Benchmark Settings</h2>
-                                        <p>Targets used to compare system performance over time.</p>
-                                    </div>
-                                    <Gauge size={20} />
-                                </div>
-
-                                <div className="admin-form-grid two">
-                                    <label className="admin-field">
-                                        Monthly production target
-                                        <input defaultValue="18,000 L" />
-                                    </label>
-
-                                    <label className="admin-field">
-                                        Forecast accuracy target
-                                        <input defaultValue="90%" />
-                                    </label>
-
-                                    <label className="admin-field">
-                                        Benchmark baseline
-                                        <select defaultValue="Last 30 days">
-                                            <option>Last 30 days</option>
-                                            <option>Last 3 months</option>
-                                            <option>Previous semester</option>
-                                        </select>
-                                    </label>
-
-                                    <label className="admin-field">
-                                        Comparison mode
-                                        <select defaultValue="Before vs After Filter">
-                                            <option>Before vs After Filter</option>
-                                            <option>Tank-to-tank</option>
-                                            <option>Monthly trend</option>
-                                        </select>
-                                    </label>
-                                </div>
-                            </section>
-                        </div>
+                        {renderActiveSection()}
                     </div>
                 </main>
             </div>
+
+            {viewDevice && (
+                <div className="admin-modal-backdrop">
+                    <div className="admin-modal-card">
+                        <div className="admin-modal-header">
+                            <div>
+                                <h2>{viewDevice.name}</h2>
+                                <p>{viewDevice.category}</p>
+                            </div>
+                            <button
+                                type="button"
+                                className="admin-icon-btn"
+                                onClick={() => setViewDevice(null)}
+                                aria-label="Close"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        <div className="admin-modal-grid">
+                            <div><span>Status</span><StatusPill status={viewDevice.status} /></div>
+                            <div><span>Category</span><strong>{viewDevice.category}</strong></div>
+                            <div><span>Last Seen</span><strong>{viewDevice.lastSeen}</strong></div>
+                            <div><span>Last Data</span><strong>{viewDevice.lastData}</strong></div>
+                            {viewDevice.inputTag && (
+                                <div className="admin-modal-wide"><span>Sensor Tag</span><strong>{viewDevice.inputTag}</strong></div>
+                            )}
+                        </div>
+
+                        <div className="admin-modal-section">
+                            <h3>Recent Logs</h3>
+                            <div className="admin-modal-log-list">
+                                <div className="admin-modal-log-item"><span className="admin-status-pill admin-status-warning">pending</span> Telemetry listener waiting for ESP32 connection</div>
+                                <div className="admin-modal-log-item"><span className="admin-status-pill admin-status-warning">pending</span> Sensor heartbeat not yet received</div>
+                                <div className="admin-modal-log-item"><span className="admin-status-pill admin-status-normal">ready</span> Backend device endpoint prepared</div>
+                                <div className="admin-modal-log-item"><span className="admin-status-pill admin-status-normal">ready</span> Camera stream URL configured</div>
+                            </div>
+                            <p className="admin-modal-note">Full device logs will load from <code>GET /api/devices/{"{id}"}/logs</code> when backend is connected.</p>
+                        </div>
+
+                        <div className="admin-modal-actions">
+                            <button type="button" className="admin-secondary-btn" onClick={() => setViewDevice(null)}>Close</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {manageDevice && (
+                <div className="admin-modal-backdrop">
+                    <div className="admin-modal-card">
+                        <div className="admin-modal-header">
+                            <div>
+                                <h2>Manage: {manageDevice.name}</h2>
+                                <p>Admin controls for this device. Backend endpoints are prepared but not yet connected.</p>
+                            </div>
+                            <button
+                                type="button"
+                                className="admin-icon-btn"
+                                onClick={() => setManageDevice(null)}
+                                aria-label="Close"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        <div className="admin-modal-section">
+                            <h3>Update Status</h3>
+                            <div className="admin-modal-field-row">
+                                <select
+                                    className="admin-inline-select"
+                                    value={manageStatus}
+                                    onChange={(e) => setManageStatus(e.target.value)}
+                                >
+                                    <option>Online</option>
+                                    <option>Offline</option>
+                                    <option>Pending</option>
+                                    <option>Warning</option>
+                                </select>
+                                <button
+                                    type="button"
+                                    className="admin-primary-btn"
+                                    onClick={() => setManageActionMsg(`Status updated to "${manageStatus}" in frontend. Backend PATCH /api/devices/${manageDevice.id}/status is ready to connect.`)}
+                                >
+                                    Apply
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="admin-modal-section">
+                            <h3>Assign Sensor Tag</h3>
+                            <div className="admin-modal-field-row">
+                                <input
+                                    className="admin-field input"
+                                    value={manageSensorTag}
+                                    onChange={(e) => setManageSensorTag(e.target.value)}
+                                    placeholder="e.g. ultrasonic_trig"
+                                    style={{ flex: 1 }}
+                                />
+                                <button
+                                    type="button"
+                                    className="admin-primary-btn"
+                                    onClick={() => setManageActionMsg(`Sensor tag "${manageSensorTag}" assigned in frontend. Backend PATCH /api/devices/${manageDevice.id}/tag is ready to connect.`)}
+                                >
+                                    Assign
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="admin-modal-section">
+                            <h3>Device Actions</h3>
+                            <div className="admin-modal-action-row">
+                                <button type="button" className="admin-secondary-btn" onClick={() => setManageActionMsg("Restart service queued. POST /api/devices/" + manageDevice.id + "/restart is ready to connect.")}>
+                                    <RefreshCcw size={14} /> Restart Service
+                                </button>
+                                <button type="button" className="admin-secondary-btn" onClick={() => setManageActionMsg("Connection refresh queued. POST /api/devices/" + manageDevice.id + "/refresh is ready to connect.")}>
+                                    <Activity size={14} /> Refresh Connection
+                                </button>
+                                <button type="button" className="admin-secondary-btn" onClick={() => setManageActionMsg("Device marked as under maintenance. PATCH /api/devices/" + manageDevice.id + "/maintenance is ready to connect.")}>
+                                    <Wrench size={14} /> Mark Maintenance
+                                </button>
+                            </div>
+                        </div>
+
+                        {manageActionMsg && (
+                            <div className="admin-info-strip">
+                                <ShieldCheck size={16} />
+                                <div><span>{manageActionMsg}</span></div>
+                            </div>
+                        )}
+
+                        <div className="admin-modal-actions">
+                            <button type="button" className="admin-secondary-btn" onClick={() => setManageDevice(null)}>Close</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -271,6 +271,25 @@
     min-height: 150px;
 }
 
+.admin-save-message {
+    max-width: 360px;
+    color: #16a34a;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.admin-engine-card {
+    display: grid;
+    gap: 10px;
+}
+
+.admin-engine-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+}
+
 .admin-threshold-panel {
     margin-bottom: 24px;
 }
@@ -506,6 +525,11 @@
     flex-wrap: wrap;
 }
 
+.admin-role-cell .admin-status-pill {
+    min-width: 76px;
+    text-align: center;
+}
+
 .admin-actions-cell {
     display: flex;
     justify-content: flex-end;
@@ -604,6 +628,30 @@
 }
 
 .admin-text-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+}
+
+.admin-icon-btn {
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--input);
+    color: var(--text);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.admin-icon-btn:hover:not(:disabled) {
+    border-color: rgba(109, 76, 255, 0.40);
+    color: var(--purple);
+}
+
+.admin-icon-btn:disabled {
     cursor: not-allowed;
     opacity: 0.45;
 }
@@ -713,9 +761,556 @@
     line-height: 1.55;
 }
 
+.admin-section-tabs {
+    display: flex;
+    gap: 10px;
+    margin: 0 0 24px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+}
+
+.admin-section-tab {
+    min-height: 40px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--input);
+    color: var(--text);
+    padding: 0 14px;
+    font-size: 13px;
+    font-weight: 800;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.admin-section-tab.active {
+    border-color: transparent;
+    background: linear-gradient(90deg, var(--purple), var(--purple2));
+    color: #ffffff;
+}
+
+.admin-control-link-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.admin-control-link {
+    min-height: 110px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--card-soft);
+    color: var(--text);
+    padding: 16px;
+    display: grid;
+    align-content: start;
+    gap: 7px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.admin-control-link strong {
+    font-size: 15px;
+    font-weight: 800;
+}
+
+.admin-control-link span {
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.admin-control-link:hover {
+    border-color: rgba(109, 76, 255, 0.45);
+}
+
+.admin-role-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 34px;
+    border-radius: 999px;
+    background: var(--card-soft);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 0 12px;
+    font-size: 12px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.admin-user-edit-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--card-soft);
+}
+
+.admin-user-edit-grid .admin-field {
+    margin-bottom: 0;
+}
+
+.admin-actions-cell.start {
+    justify-content: flex-start;
+}
+
+.admin-permission-matrix,
+.admin-diagnostic-grid,
+.admin-health-grid {
+    display: grid;
+    gap: 12px;
+}
+
+.admin-permission-card,
+.admin-diagnostic-card,
+.admin-health-card {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--card-soft);
+    padding: 16px;
+}
+
+.admin-permission-card h3,
+.admin-diagnostic-card h3,
+.admin-health-card h3 {
+    margin: 0 0 6px;
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 800;
+}
+
+.admin-permission-card p,
+.admin-diagnostic-card p,
+.admin-health-card p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.admin-permission-role-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.admin-permission-role-list span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    border-radius: 999px;
+    padding: 0 10px;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.admin-permission-yes {
+    background: var(--green-soft);
+    color: var(--green-text);
+}
+
+.admin-permission-no {
+    background: var(--progress-bg);
+    color: var(--muted);
+}
+
+/* Compact permission matrix table */
+.admin-perm-table-wrap {
+    overflow-y: auto;
+    max-height: 340px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+}
+
+.admin-perm-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.admin-perm-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--card);
+}
+
+.admin-perm-table th {
+    padding: 10px 12px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    text-align: center;
+    white-space: nowrap;
+    border-bottom: 1px solid var(--border);
+}
+
+.admin-perm-table th:first-child {
+    text-align: left;
+    min-width: 140px;
+}
+
+.admin-perm-table td {
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: middle;
+}
+
+.admin-perm-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.admin-perm-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    cursor: default;
+}
+
+.admin-perm-cell {
+    text-align: center;
+}
+
+.admin-perm-yes,
+.admin-perm-no {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.admin-perm-yes {
+    background: var(--green-soft);
+    color: var(--green-text);
+}
+
+.admin-perm-no {
+    background: var(--progress-bg);
+    color: var(--muted);
+}
+
+.admin-health-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.admin-health-card-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+    margin-bottom: 12px;
+}
+
+.admin-health-card strong {
+    display: block;
+    color: var(--text);
+    font-size: 26px;
+    line-height: 1;
+    font-weight: 800;
+}
+
+.admin-meter {
+    height: 10px;
+    border-radius: 999px;
+    background: var(--progress-bg);
+    overflow: hidden;
+    margin: 12px 0;
+}
+
+.admin-meter span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--purple), var(--purple2));
+}
+
+.admin-settings-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 18px;
+}
+
+.admin-field small {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.45;
+}
+
+.admin-input-with-unit {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.admin-input-with-unit input {
+    border-radius: 12px 0 0 12px;
+}
+
+.admin-input-with-unit span {
+    min-width: 76px;
+    height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-left: none;
+    border-radius: 0 12px 12px 0;
+    background: var(--card-soft);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.admin-template-list {
+    display: grid;
+    gap: 10px;
+    margin-bottom: 18px;
+}
+
+.admin-template-row {
+    width: 100%;
+    min-height: 64px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--card-soft);
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 14px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.admin-template-row strong,
+.admin-template-row small {
+    display: block;
+}
+
+.admin-template-row strong {
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.admin-template-row small {
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.admin-template-row .admin-toggle i {
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    background: #ffffff;
+    display: block;
+    transition: transform 0.2s ease;
+}
+
+.admin-template-row .admin-toggle.active i {
+    transform: translateX(24px);
+}
+
+.admin-diagnostic-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+
+.admin-diagnostic-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.admin-info-strip {
+    display: grid;
+    grid-template-columns: 38px 1fr;
+    gap: 12px;
+    align-items: center;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--card-soft);
+    padding: 14px;
+    margin: 16px 0;
+}
+
+.admin-info-strip svg {
+    color: var(--purple);
+}
+
+.admin-info-strip strong,
+.admin-info-strip span {
+    display: block;
+}
+
+.admin-info-strip strong {
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.admin-info-strip span {
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+
+/* DEVICE MODALS */
+.admin-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(15, 23, 42, 0.38);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.admin-modal-card {
+    width: min(640px, 100%);
+    max-height: 88vh;
+    overflow-y: auto;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 24px;
+    box-shadow: 0 30px 90px rgba(2, 6, 23, 0.24);
+    color: var(--text);
+}
+
+.admin-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.admin-modal-header h2 {
+    margin: 0 0 5px;
+    font-size: 20px;
+    font-weight: 800;
+}
+
+.admin-modal-header p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.admin-modal-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.admin-modal-grid > div {
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--card-soft);
+    display: grid;
+    gap: 6px;
+}
+
+.admin-modal-wide {
+    grid-column: 1 / -1;
+}
+
+.admin-modal-grid span {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.admin-modal-grid strong {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.admin-modal-section {
+    margin-bottom: 18px;
+}
+
+.admin-modal-section h3 {
+    margin: 0 0 10px;
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--text);
+}
+
+.admin-modal-log-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.admin-modal-log-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.admin-modal-note {
+    margin: 0;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+.admin-modal-field-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.admin-modal-action-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.admin-modal-action-row .admin-secondary-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.admin-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 6px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+
 @media (max-width: 1200px) {
     .admin-summary-grid,
-    .admin-threshold-grid {
+    .admin-threshold-grid,
+    .admin-health-grid,
+    .admin-settings-grid,
+    .admin-diagnostic-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
@@ -734,7 +1329,12 @@
     .admin-threshold-grid,
     .admin-mode-grid,
     .admin-form-grid.two,
-    .admin-access-matrix {
+    .admin-access-matrix,
+    .admin-control-link-grid,
+    .admin-user-edit-grid,
+    .admin-health-grid,
+    .admin-settings-grid,
+    .admin-diagnostic-grid {
         grid-template-columns: 1fr;
     }
 

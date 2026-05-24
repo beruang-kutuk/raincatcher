@@ -3,13 +3,18 @@ import {
     Activity,
     AlertTriangle,
     CloudRain,
+    ClipboardList,
+    Cpu,
     FileText,
     FlaskConical,
+    Gauge,
+    HeartPulse,
     Image,
     LayoutDashboard,
     Settings,
     ShieldCheck,
     SlidersHorizontal,
+    Wrench,
     UserCog,
 } from "lucide-react";
 import { getStoredRole } from "../../auth/rbac";
@@ -37,8 +42,14 @@ const labItems: SidebarItem[] = [
 
 const adminItems: SidebarItem[] = [
     { label: "Admin Dashboard", path: "/admin/dashboard", icon: <ShieldCheck size={18} /> },
-    { label: "System Admin", path: "/admin/system", icon: <SlidersHorizontal size={18} /> },
     { label: "Access Control", path: "/admin/access", icon: <UserCog size={18} /> },
+    { label: "Device Management", path: "/admin/devices", icon: <Cpu size={18} /> },
+    { label: "System Health", path: "/admin/system-health", icon: <HeartPulse size={18} /> },
+    { label: "Thresholds", path: "/admin/thresholds", icon: <Gauge size={18} /> },
+    { label: "Forecast Settings", path: "/admin/forecast-settings", icon: <CloudRain size={18} /> },
+    { label: "Report Templates", path: "/admin/report-templates", icon: <ClipboardList size={18} /> },
+    { label: "Diagnostics", path: "/admin/diagnostics", icon: <Wrench size={18} /> },
+    { label: "Audit Logs", path: "/admin/audit-logs", icon: <SlidersHorizontal size={18} /> },
     { label: "Settings", path: "/settings", icon: <Settings size={18} /> },
 ];
 

@@ -1,14 +1,23 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { ExternalLink, Trash2 } from "lucide-react";
 import "../../../styles/dashboard.css";
 import "../../../styles/simulation.css";
 import Sidebar from "../../../components/layout/Sidebar";
 import ProfileMenu from "../../../components/layout/ProfileMenu";
+import { RAINWATER_TANK_NAME } from "../../../services/sensorInputs";
+import { formatDateRange, getProjectionDays } from "../../../services/time";
 
 type SummaryCard = {
     label: string;
     value: string;
     subtext: string;
     status: "good" | "low" | "warning";
+};
+
+type ProjectionPoint = {
+    label: string;
+    day: string;
+    value: number;
 };
 
 type ScenarioRow = {
@@ -19,55 +28,27 @@ type ScenarioRow = {
     lowestLevel: string;
     overflowRisk: string;
     shortageRisk: string;
+    rainfallChange: string;
+    usageChange: string;
+    efficiency: string;
+    recommendation: string;
     tag?: string;
 };
 
-const summaryCards: SummaryCard[] = [
-    { label: "Final Storage Level", value: "82%", subtext: "≈ 82 m³", status: "good" },
-    { label: "Lowest Level Reached", value: "62%", subtext: "≈ 62 m³", status: "good" },
-    { label: "Overflow Risk", value: "Low", subtext: "12% chance", status: "warning" },
-    { label: "Shortage Risk", value: "Low", subtext: "8% chance", status: "low" },
-];
+function buildProjection(startingLevel: number, efficiency: number, days: number): ProjectionPoint[] {
+    const efficiencyLift = (efficiency - 80) * 0.08;
 
-const scenarioRows: ScenarioRow[] = [
-    {
-        id: 1,
-        name: "Current Simulation",
-        description: "Moderate rainfall, normal usage",
-        finalLevel: "82%",
-        lowestLevel: "62%",
-        overflowRisk: "Low (12%)",
-        shortageRisk: "Low (8%)",
-        tag: "Active",
-    },
-    {
-        id: 2,
-        name: "High Rainfall",
-        description: "Heavy rainfall (+60%)",
-        finalLevel: "96%",
-        lowestLevel: "78%",
-        overflowRisk: "Medium (35%)",
-        shortageRisk: "Very Low (2%)",
-    },
-    {
-        id: 3,
-        name: "High Usage",
-        description: "Usage +30%",
-        finalLevel: "55%",
-        lowestLevel: "38%",
-        overflowRisk: "Low (5%)",
-        shortageRisk: "High (42%)",
-    },
-    {
-        id: 4,
-        name: "Dry Weather",
-        description: "Low rainfall (-50%)",
-        finalLevel: "41%",
-        lowestLevel: "24%",
-        overflowRisk: "Low (3%)",
-        shortageRisk: "High (68%)",
-    },
-];
+    return getProjectionDays(days).map((item, index) => {
+        const drift = index * 1.8;
+        const value = Math.max(0, Math.min(100, Math.round(startingLevel + efficiencyLift - drift)));
+
+        return {
+            label: item.date,
+            day: item.day,
+            value,
+        };
+    });
+}
 
 function getSummaryStatusClass(status: "good" | "low" | "warning") {
     if (status === "warning") return "simulation-status-warning";
@@ -92,10 +73,7 @@ function SummaryMetricCard({ label, value, subtext, status }: SummaryCard) {
     );
 }
 
-function StorageProjectionChart() {
-    const values = [78, 83, 83, 88, 84, 76, 66, 61];
-    const labels = ["21 Apr", "22 Apr", "23 Apr", "24 Apr", "25 Apr", "26 Apr", "27 Apr", "28 Apr"];
-
+function StorageProjectionChart({ data }: { data: ProjectionPoint[] }) {
     const width = 760;
     const height = 280;
     const paddingLeft = 40;
@@ -106,14 +84,14 @@ function StorageProjectionChart() {
     const min = 0;
     const max = 100;
 
-    const points = values.map((value, index) => {
+    const points = data.map((item, index) => {
         const x =
             paddingLeft +
-            (index * (width - paddingLeft - paddingRight)) / (values.length - 1);
+            (index * (width - paddingLeft - paddingRight)) / Math.max(data.length - 1, 1);
         const y =
             height -
             paddingBottom -
-            ((value - min) / (max - min)) * (height - paddingTop - paddingBottom);
+            ((item.value - min) / (max - min)) * (height - paddingTop - paddingBottom);
 
         return { x, y };
     });
@@ -179,10 +157,35 @@ function StorageProjectionChart() {
             </svg>
 
             <div className="simulation-chart-labels">
-                {labels.map((label) => (
-                    <span key={label}>{label}</span>
+                {data.map((item) => (
+                    <span key={item.label}>{item.label}</span>
                 ))}
             </div>
+        </div>
+    );
+}
+
+function StorageProjectionTable({ data }: { data: ProjectionPoint[] }) {
+    return (
+        <div className="simulation-table-wrap">
+            <table className="simulation-table">
+                <thead>
+                    <tr>
+                        <th>Day</th>
+                        <th>Date</th>
+                        <th>Projected Storage</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {data.map((item) => (
+                        <tr key={item.label}>
+                            <td>{item.day}</td>
+                            <td>{item.label}</td>
+                            <td>{item.value}%</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
         </div>
     );
 }
@@ -191,16 +194,51 @@ export default function SimulationPage() {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [startingLevel, setStartingLevel] = useState(78);
     const [efficiency, setEfficiency] = useState(88);
+    const [forecastPeriod, setForecastPeriod] = useState(7);
+    const [expectedRainfall, setExpectedRainfall] = useState("0");
+    const [dailyUsage, setDailyUsage] = useState("0");
+    const [tankCapacity, setTankCapacity] = useState("100");
+    const [projectionView, setProjectionView] = useState<"chart" | "table">("chart");
     const [weekModalOpen, setWeekModalOpen] = useState(false);
-    const [selectedWeek, setSelectedWeek] = useState("21 Apr 2026 - 28 Apr 2026");
+    const [selectedWeek, setSelectedWeek] = useState(formatDateRange(7));
     const [customStartDate, setCustomStartDate] = useState("");
     const [customEndDate, setCustomEndDate] = useState("");
 
+    const [scenarioRows, setScenarioRows] = useState<ScenarioRow[]>([]);
+    const [selectedScenario, setSelectedScenario] = useState<ScenarioRow | null>(null);
+    const [addScenarioOpen, setAddScenarioOpen] = useState(false);
+
+    const [newScenario, setNewScenario] = useState({
+        name: "",
+        rainfallChange: "0",
+        usageChange: "0",
+        startingLevel: "78",
+        efficiency: "88",
+        forecastPeriod: "7 Days",
+    });
+
+    const projectionData = useMemo(
+        () => buildProjection(startingLevel, efficiency, forecastPeriod),
+        [startingLevel, efficiency, forecastPeriod],
+    );
+
+    const finalLevel = projectionData.at(-1)?.value ?? startingLevel;
+    const lowestLevel = Math.min(...projectionData.map((item) => item.value));
+    const overflowRisk = finalLevel > 92 ? "Medium" : "Low";
+    const shortageRisk = lowestLevel < 30 ? "High" : lowestLevel < 45 ? "Medium" : "Low";
+
+    const summaryCards: SummaryCard[] = [
+        { label: "Final Storage Level", value: `${finalLevel}%`, subtext: `${finalLevel} m3 of ${tankCapacity} m3`, status: finalLevel > 45 ? "good" : "warning" },
+        { label: "Lowest Level Reached", value: `${lowestLevel}%`, subtext: `${lowestLevel} m3 estimated`, status: lowestLevel > 45 ? "good" : "warning" },
+        { label: "Overflow Risk", value: overflowRisk, subtext: "Derived from projected final level", status: overflowRisk === "Low" ? "low" : "warning" },
+        { label: "Shortage Risk", value: shortageRisk, subtext: "Derived from projected minimum level", status: shortageRisk === "Low" ? "low" : "warning" },
+    ];
+
     const weekOptions = [
-        "21 Apr 2026 - 28 Apr 2026",
-        "29 Apr 2026 - 05 May 2026",
-        "06 May 2026 - 13 May 2026",
-        "14 May 2026 - 21 May 2026",
+        formatDateRange(7),
+        formatDateRange(7, new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
+        formatDateRange(7, new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)),
+        formatDateRange(7, new Date(Date.now() + 21 * 24 * 60 * 60 * 1000)),
     ];
 
     function applyCustomRange() {
@@ -211,6 +249,55 @@ export default function SimulationPage() {
         }
 
         setWeekModalOpen(false);
+    }
+
+    function deleteScenario(id: number) {
+        setScenarioRows((prev) => prev.filter((scenario) => scenario.id !== id));
+    }
+
+    function createScenario() {
+        const rainfall = Number(newScenario.rainfallChange);
+        const usage = Number(newScenario.usageChange);
+        const start = Number(newScenario.startingLevel);
+        const eff = Number(newScenario.efficiency);
+
+        const scenarioProjection = buildProjection(start + rainfall * 0.18 - usage * 0.22, eff, Number.parseInt(newScenario.forecastPeriod) || 7);
+        const scenarioFinal = scenarioProjection.at(-1)?.value ?? start;
+        const scenarioLow = Math.min(...scenarioProjection.map((item) => item.value));
+        const overflow = Math.max(2, Math.min(90, Math.round(scenarioFinal > 90 ? 45 + rainfall * 0.2 : 8 + rainfall * 0.1)));
+        const shortage = Math.max(2, Math.min(90, Math.round(scenarioLow < 35 ? 55 + usage * 0.2 : 10 + usage * 0.1)));
+
+        const scenarioName = newScenario.name.trim() || "Custom Scenario";
+
+        const createdScenario: ScenarioRow = {
+            id: Date.now(),
+            name: scenarioName,
+            description: `Rainfall ${rainfall >= 0 ? "+" : ""}${rainfall}%, usage ${usage >= 0 ? "+" : ""}${usage}%`,
+            finalLevel: `${scenarioFinal}%`,
+            lowestLevel: `${scenarioLow}%`,
+            overflowRisk: `${overflow > 40 ? "High" : overflow > 20 ? "Medium" : "Low"} (${overflow}%)`,
+            shortageRisk: `${shortage > 40 ? "High" : shortage > 20 ? "Medium" : "Low"} (${shortage}%)`,
+            rainfallChange: `${rainfall >= 0 ? "+" : ""}${rainfall}%`,
+            usageChange: `${usage >= 0 ? "+" : ""}${usage}%`,
+            efficiency: `${eff}%`,
+            recommendation:
+                shortage > 40
+                    ? "Shortage risk is high. Reduce usage or prepare alternative water supply."
+                    : overflow > 40
+                        ? "Overflow risk is high. Monitor storage level and prepare drainage."
+                        : "Scenario remains within acceptable operating range.",
+        };
+
+        setScenarioRows((prev) => [...prev, createdScenario]);
+        setAddScenarioOpen(false);
+        setNewScenario({
+            name: "",
+            rainfallChange: "0",
+            usageChange: "0",
+            startingLevel: "78",
+            efficiency: "88",
+            forecastPeriod: "7 Days",
+        });
     }
 
     return (
@@ -235,11 +322,11 @@ export default function SimulationPage() {
                                     onClick={() => setWeekModalOpen(true)}
                                 >
                                     {selectedWeek}
-                                    <span>⌄</span>
+                                    <span>v</span>
                                 </button>
 
                                 <button className="simulation-filter-btn" type="button">
-                                    Tank A
+                                    {RAINWATER_TANK_NAME}
                                 </button>
 
                                 <div className="dashboard-actions">
@@ -252,7 +339,7 @@ export default function SimulationPage() {
                             <section className="simulation-panel simulation-input-panel">
                                 <div className="simulation-panel-header">
                                     <h2>Input Parameters</h2>
-                                    <p>Adjust the values and run simulation.</p>
+                                    <p>Adjust values and run a frontend what-if projection.</p>
                                 </div>
 
                                 <div className="simulation-input-group">
@@ -276,17 +363,26 @@ export default function SimulationPage() {
 
                                 <div className="simulation-input-group">
                                     <label>Forecast Period</label>
-                                    <select className="simulation-select">
-                                        <option>7 Days</option>
-                                        <option>14 Days</option>
-                                        <option>30 Days</option>
+                                    <select
+                                        className="simulation-select"
+                                        value={forecastPeriod}
+                                        onChange={(event) => setForecastPeriod(Number(event.target.value))}
+                                    >
+                                        <option value={7}>7 Days</option>
+                                        <option value={14}>14 Days</option>
+                                        <option value={30}>30 Days</option>
                                     </select>
                                 </div>
 
                                 <div className="simulation-input-group">
                                     <label>Expected Rainfall (Total)</label>
                                     <div className="simulation-input-with-unit">
-                                        <input type="text" value="45" readOnly className="simulation-input" />
+                                        <input
+                                            type="number"
+                                            value={expectedRainfall}
+                                            onChange={(event) => setExpectedRainfall(event.target.value)}
+                                            className="simulation-input"
+                                        />
                                         <span>mm</span>
                                     </div>
                                 </div>
@@ -294,16 +390,26 @@ export default function SimulationPage() {
                                 <div className="simulation-input-group">
                                     <label>Average Daily Usage</label>
                                     <div className="simulation-input-with-unit">
-                                        <input type="text" value="8.5" readOnly className="simulation-input" />
-                                        <span>m³/day</span>
+                                        <input
+                                            type="number"
+                                            value={dailyUsage}
+                                            onChange={(event) => setDailyUsage(event.target.value)}
+                                            className="simulation-input"
+                                        />
+                                        <span>m3/day</span>
                                     </div>
                                 </div>
 
                                 <div className="simulation-input-group">
                                     <label>Tank Capacity</label>
                                     <div className="simulation-input-with-unit">
-                                        <input type="text" value="100" readOnly className="simulation-input" />
-                                        <span>m³</span>
+                                        <input
+                                            type="number"
+                                            value={tankCapacity}
+                                            onChange={(event) => setTankCapacity(event.target.value)}
+                                            className="simulation-input"
+                                        />
+                                        <span>m3</span>
                                     </div>
                                 </div>
 
@@ -343,20 +449,31 @@ export default function SimulationPage() {
                                         <h2>Storage Projection</h2>
 
                                         <div className="simulation-chart-toggle">
-                                            <button className="simulation-toggle-btn active" type="button">
+                                            <button
+                                                className={`simulation-toggle-btn ${projectionView === "chart" ? "active" : ""}`}
+                                                type="button"
+                                                onClick={() => setProjectionView("chart")}
+                                            >
                                                 Chart
                                             </button>
-                                            <button className="simulation-toggle-btn" type="button">
+                                            <button
+                                                className={`simulation-toggle-btn ${projectionView === "table" ? "active" : ""}`}
+                                                type="button"
+                                                onClick={() => setProjectionView("table")}
+                                            >
                                                 Table
                                             </button>
                                         </div>
                                     </div>
 
-                                    <StorageProjectionChart />
+                                    {projectionView === "chart" ? (
+                                        <StorageProjectionChart data={projectionData} />
+                                    ) : (
+                                        <StorageProjectionTable data={projectionData} />
+                                    )}
 
                                     <div className="simulation-chart-legend">
                                         <span><i className="legend-simulated" /> Simulated</span>
-                                        <span><i className="legend-baseline" /> Baseline (Normal)</span>
                                         <span><i className="legend-safe" /> Safe Range</span>
                                         <span><i className="legend-critical" /> Critical Level (30%)</span>
                                     </div>
@@ -368,55 +485,81 @@ export default function SimulationPage() {
                             <div className="simulation-panel-header simulation-panel-header-split">
                                 <div>
                                     <h2>Scenario Comparison</h2>
-                                    <p>Compare different scenarios side by side.</p>
+                                    <p>Compare scenarios for {RAINWATER_TANK_NAME}.</p>
                                 </div>
 
-                                <button className="simulation-add-btn" type="button">
+                                <button
+                                    className="simulation-add-btn"
+                                    type="button"
+                                    onClick={() => setAddScenarioOpen(true)}
+                                >
                                     + Add Scenario
                                 </button>
                             </div>
 
-                            <div className="simulation-table-wrap">
-                                <table className="simulation-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Scenario</th>
-                                            <th>Description</th>
-                                            <th>Final Level</th>
-                                            <th>Lowest Level</th>
-                                            <th>Overflow Risk</th>
-                                            <th>Shortage Risk</th>
-                                            <th>Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {scenarioRows.map((row) => (
-                                            <tr key={row.id}>
-                                                <td>
-                                                    <div className="simulation-scenario-cell">
-                                                        <span className="simulation-dot" />
-                                                        <span>{row.name}</span>
-                                                        {row.tag && (
-                                                            <span className="simulation-row-tag">{row.tag}</span>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                                <td>{row.description}</td>
-                                                <td>{row.finalLevel}</td>
-                                                <td>{row.lowestLevel}</td>
-                                                <td>{row.overflowRisk}</td>
-                                                <td>{row.shortageRisk}</td>
-                                                <td>
-                                                    <div className="simulation-actions">
-                                                        <button type="button" className="simulation-icon-btn">↗</button>
-                                                        <button type="button" className="simulation-icon-btn">•••</button>
-                                                    </div>
-                                                </td>
+                            {scenarioRows.length === 0 ? (
+                                <div className="empty-state">
+                                    <strong>No saved scenarios yet</strong>
+                                    <span>Add a scenario to compare rainfall, usage, starting level, and efficiency assumptions.</span>
+                                </div>
+                            ) : (
+                                <div className="simulation-table-wrap">
+                                    <table className="simulation-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Scenario</th>
+                                                <th>Description</th>
+                                                <th>Final Level</th>
+                                                <th>Lowest Level</th>
+                                                <th>Overflow Risk</th>
+                                                <th>Shortage Risk</th>
+                                                <th>Action</th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                                        </thead>
+                                        <tbody>
+                                            {scenarioRows.map((row) => (
+                                                <tr key={row.id}>
+                                                    <td>
+                                                        <div className="simulation-scenario-cell">
+                                                            <span className="simulation-dot" />
+                                                            <span>{row.name}</span>
+                                                            {row.tag && (
+                                                                <span className="simulation-row-tag">{row.tag}</span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td>{row.description}</td>
+                                                    <td>{row.finalLevel}</td>
+                                                    <td>{row.lowestLevel}</td>
+                                                    <td>{row.overflowRisk}</td>
+                                                    <td>{row.shortageRisk}</td>
+                                                    <td>
+                                                        <div className="simulation-actions">
+                                                            <button
+                                                                type="button"
+                                                                className="simulation-icon-btn"
+                                                                title="View simulation result"
+                                                                onClick={() => setSelectedScenario(row)}
+                                                            >
+                                                                <ExternalLink size={16} />
+                                                            </button>
+
+                                                            <button
+                                                                type="button"
+                                                                className="simulation-icon-btn simulation-delete-btn"
+                                                                title="Delete scenario"
+                                                                onClick={() => deleteScenario(row.id)}
+                                                            >
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
                         </section>
                     </div>
                 </main>
@@ -436,7 +579,7 @@ export default function SimulationPage() {
                                 className="simulation-week-modal-close"
                                 onClick={() => setWeekModalOpen(false)}
                             >
-                                ×
+                                x
                             </button>
                         </div>
 
@@ -484,6 +627,197 @@ export default function SimulationPage() {
                     </div>
                 </div>
             )}
+
+            {selectedScenario && (
+                <div className="simulation-modal-backdrop">
+                    <div className="simulation-result-modal">
+                        <div className="simulation-modal-header">
+                            <div>
+                                <h2>{selectedScenario.name}</h2>
+                                <p>Simulation result details for {RAINWATER_TANK_NAME}.</p>
+                            </div>
+
+                            <button
+                                type="button"
+                                className="simulation-modal-close"
+                                onClick={() => setSelectedScenario(null)}
+                            >
+                                x
+                            </button>
+                        </div>
+
+                        <div className="simulation-result-grid">
+                            <div className="simulation-result-card">
+                                <span>Final Storage Level</span>
+                                <strong>{selectedScenario.finalLevel}</strong>
+                            </div>
+
+                            <div className="simulation-result-card">
+                                <span>Lowest Level</span>
+                                <strong>{selectedScenario.lowestLevel}</strong>
+                            </div>
+
+                            <div className="simulation-result-card">
+                                <span>Overflow Risk</span>
+                                <strong>{selectedScenario.overflowRisk}</strong>
+                            </div>
+
+                            <div className="simulation-result-card">
+                                <span>Shortage Risk</span>
+                                <strong>{selectedScenario.shortageRisk}</strong>
+                            </div>
+                        </div>
+
+                        <div className="simulation-result-details">
+                            <h3>Scenario Parameters</h3>
+
+                            <div className="simulation-result-detail-row">
+                                <span>Description</span>
+                                <strong>{selectedScenario.description}</strong>
+                            </div>
+
+                            <div className="simulation-result-detail-row">
+                                <span>Rainfall Change</span>
+                                <strong>{selectedScenario.rainfallChange}</strong>
+                            </div>
+
+                            <div className="simulation-result-detail-row">
+                                <span>Usage Change</span>
+                                <strong>{selectedScenario.usageChange}</strong>
+                            </div>
+
+                            <div className="simulation-result-detail-row">
+                                <span>Collection Efficiency</span>
+                                <strong>{selectedScenario.efficiency}</strong>
+                            </div>
+                        </div>
+
+                        <div className="simulation-recommendation-box">
+                            <h3>Recommendation</h3>
+                            <p>{selectedScenario.recommendation}</p>
+                        </div>
+
+                        <button
+                            type="button"
+                            className="simulation-run-btn"
+                            onClick={() => setSelectedScenario(null)}
+                        >
+                            Done
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {addScenarioOpen && (
+                <div className="simulation-modal-backdrop">
+                    <div className="simulation-result-modal">
+                        <div className="simulation-modal-header">
+                            <div>
+                                <h2>Add Scenario</h2>
+                                <p>Input simulation parameters for {RAINWATER_TANK_NAME}.</p>
+                            </div>
+
+                            <button
+                                type="button"
+                                className="simulation-modal-close"
+                                onClick={() => setAddScenarioOpen(false)}
+                            >
+                                x
+                            </button>
+                        </div>
+
+                        <div className="simulation-form-grid">
+                            <div className="simulation-input-group">
+                                <label>Scenario Name</label>
+                                <input
+                                    className="simulation-input"
+                                    value={newScenario.name}
+                                    onChange={(e) => setNewScenario((prev) => ({ ...prev, name: e.target.value }))}
+                                    placeholder="e.g. Extreme Rainfall"
+                                />
+                            </div>
+
+                            <div className="simulation-input-group">
+                                <label>Forecast Period</label>
+                                <select
+                                    className="simulation-select"
+                                    value={newScenario.forecastPeriod}
+                                    onChange={(e) => setNewScenario((prev) => ({ ...prev, forecastPeriod: e.target.value }))}
+                                >
+                                    <option>7 Days</option>
+                                    <option>14 Days</option>
+                                    <option>30 Days</option>
+                                </select>
+                            </div>
+
+                            <div className="simulation-input-group">
+                                <label>Rainfall Change</label>
+                                <div className="simulation-input-with-unit">
+                                    <input
+                                        className="simulation-input"
+                                        type="number"
+                                        value={newScenario.rainfallChange}
+                                        onChange={(e) => setNewScenario((prev) => ({ ...prev, rainfallChange: e.target.value }))}
+                                    />
+                                    <span>%</span>
+                                </div>
+                            </div>
+
+                            <div className="simulation-input-group">
+                                <label>Usage Change</label>
+                                <div className="simulation-input-with-unit">
+                                    <input
+                                        className="simulation-input"
+                                        type="number"
+                                        value={newScenario.usageChange}
+                                        onChange={(e) => setNewScenario((prev) => ({ ...prev, usageChange: e.target.value }))}
+                                    />
+                                    <span>%</span>
+                                </div>
+                            </div>
+
+                            <div className="simulation-input-group">
+                                <label>Starting Level</label>
+                                <div className="simulation-input-with-unit">
+                                    <input
+                                        className="simulation-input"
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        value={newScenario.startingLevel}
+                                        onChange={(e) => setNewScenario((prev) => ({ ...prev, startingLevel: e.target.value }))}
+                                    />
+                                    <span>%</span>
+                                </div>
+                            </div>
+
+                            <div className="simulation-input-group">
+                                <label>Collection Efficiency</label>
+                                <div className="simulation-input-with-unit">
+                                    <input
+                                        className="simulation-input"
+                                        type="number"
+                                        min="50"
+                                        max="100"
+                                        value={newScenario.efficiency}
+                                        onChange={(e) => setNewScenario((prev) => ({ ...prev, efficiency: e.target.value }))}
+                                    />
+                                    <span>%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button
+                            type="button"
+                            className="simulation-run-btn"
+                            onClick={createScenario}
+                        >
+                            Create Scenario
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
+

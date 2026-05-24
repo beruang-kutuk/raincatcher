@@ -1,14 +1,25 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Bell, CloudRain, Droplets, ThermometerSun, Wind } from "lucide-react";
 import "../../../styles/dashboard.css";
 import Sidebar from "../../../components/layout/Sidebar";
 import ProfileMenu from "../../../components/layout/ProfileMenu";
 import RpiCameraFeed from "../../../components/lab/RpiCameraFeed";
+import {
+    RAINWATER_TANK_NAME,
+    SENSOR_INPUT_TAGS,
+    formatNullableValue,
+    placeholderTelemetryRecord,
+} from "../../../services/sensorInputs";
+import {
+    formatCurrentDateTime,
+    getProjectionDays,
+} from "../../../services/time";
 
 type StatCardData = {
     title: string;
     value: string;
     status?: "normal" | "flagged" | "warning";
+    inputTag: string;
 };
 
 type AnomalyItem = {
@@ -27,80 +38,9 @@ type NotificationItem = {
     severity: "low" | "medium" | "high";
 };
 
-const stats: StatCardData[] = [
-    { title: "Last Telemetry", value: "10 mins ago", status: "normal" },
-    { title: "Turbidity", value: "4.2 NTU", status: "normal" },
-    { title: "Cabinet Temp", value: "29°C", status: "normal" },
-    { title: "Humidity", value: "71%", status: "normal" },
-];
-
-const notifications: NotificationItem[] = [
-    {
-        id: 1,
-        title: "Water Level Drop",
-        message: "Rainwater Tank dropped faster than expected.",
-        time: "10:42 AM",
-        severity: "high",
-    },
-    {
-        id: 2,
-        title: "Turbidity Spike",
-        message: "Rainwater Tank exceeded normal turbidity threshold.",
-        time: "09:15 AM",
-        severity: "medium",
-    },
-    {
-        id: 3,
-        title: "Telemetry Delay",
-        message: "RC-01 reported a delayed reading.",
-        time: "08:30 AM",
-        severity: "low",
-    },
-];
-
-const rainfallData = [
-    { day: "Mon", rain: 6 },
-    { day: "Tue", rain: 12 },
-    { day: "Wed", rain: 8 },
-    { day: "Thu", rain: 15 },
-    { day: "Fri", rain: 4 },
-    { day: "Sat", rain: 18 },
-    { day: "Sun", rain: 10 },
-];
-
-const forecastData = [
-    { day: "Day 1", storage: 76 },
-    { day: "Day 5", storage: 72 },
-    { day: "Day 10", storage: 68 },
-    { day: "Day 15", storage: 74 },
-    { day: "Day 20", storage: 79 },
-    { day: "Day 25", storage: 70 },
-    { day: "Day 30", storage: 66 },
-];
-
-const anomalies: AnomalyItem[] = [
-    {
-        id: 1,
-        title: "Water Level Drop",
-        message: "Rainwater Tank dropped faster than expected.",
-        severity: "high",
-        time: "Today, 10:42 AM",
-    },
-    {
-        id: 2,
-        title: "Turbidity Spike",
-        message: "Rainwater Tank exceeded normal turbidity threshold.",
-        severity: "medium",
-        time: "Today, 9:15 AM",
-    },
-    {
-        id: 3,
-        title: "Telemetry Delay",
-        message: "RC-01 reported a delayed reading.",
-        severity: "low",
-        time: "Today, 8:30 AM",
-    },
-];
+const notifications: NotificationItem[] = [];
+const rainfallData: Array<{ day: string; rain: number | null }> = [];
+const anomalies: AnomalyItem[] = [];
 
 function getSeverityClass(severity: "low" | "medium" | "high") {
     switch (severity) {
@@ -113,7 +53,7 @@ function getSeverityClass(severity: "low" | "medium" | "high") {
     }
 }
 
-function StatCard({ title, value, status = "normal" }: StatCardData) {
+function StatCard({ title, value, status = "warning", inputTag }: StatCardData) {
     return (
         <div className="stat-card">
             <div className="stat-card-header">
@@ -123,14 +63,27 @@ function StatCard({ title, value, status = "normal" }: StatCardData) {
             <h3 className="stat-value">{value}</h3>
 
             <div className="stat-card-status">
-                <span className={`status-pill status-${status}`}>{status}</span>
+                <span className={`status-pill status-${status}`}>{inputTag}</span>
             </div>
         </div>
     );
 }
 
-function MiniBarChart({ data }: { data: Array<{ day: string; rain: number }> }) {
-    const max = Math.max(...data.map((item) => item.rain));
+function MiniBarChart({ data }: { data: Array<{ day: string; rain: number | null }> }) {
+    const numericValues = data
+        .map((item) => item.rain)
+        .filter((value): value is number => typeof value === "number");
+
+    if (numericValues.length === 0) {
+        return (
+            <div className="empty-state compact">
+                <strong>No rainfall history yet</strong>
+                <span>Rainfall bars will render after weather or local station input is connected.</span>
+            </div>
+        );
+    }
+
+    const max = Math.max(...numericValues);
 
     return (
         <div className="mini-chart">
@@ -139,8 +92,8 @@ function MiniBarChart({ data }: { data: Array<{ day: string; rain: number }> }) 
                     <div key={item.day} className="mini-chart-item">
                         <div
                             className="mini-chart-bar"
-                            style={{ height: `${(item.rain / max) * 100}%` }}
-                            title={`${item.rain} mm`}
+                            style={{ height: `${item.rain ? (item.rain / max) * 100 : 0}%` }}
+                            title={`${item.rain ?? 0} mm`}
                         />
                         <span className="mini-chart-label">{item.day}</span>
                     </div>
@@ -150,7 +103,16 @@ function MiniBarChart({ data }: { data: Array<{ day: string; rain: number }> }) 
     );
 }
 
-function ForecastList({ data }: { data: Array<{ day: string; storage: number }> }) {
+function ForecastList({ data }: { data: Array<{ day: string; storage: number | null }> }) {
+    if (data.every((item) => item.storage === null)) {
+        return (
+            <div className="empty-state compact">
+                <strong>No storage forecast yet</strong>
+                <span>Projection rows will use ultrasonic water level and weather input.</span>
+            </div>
+        );
+    }
+
     return (
         <div className="forecast-list">
             {data.map((item) => (
@@ -159,10 +121,10 @@ function ForecastList({ data }: { data: Array<{ day: string; storage: number }> 
                     <div className="forecast-progress">
                         <div
                             className="forecast-progress-fill"
-                            style={{ width: `${item.storage}%` }}
+                            style={{ width: `${item.storage ?? 0}%` }}
                         />
                     </div>
-                    <span>{item.storage}%</span>
+                    <span>{item.storage === null ? "--" : `${item.storage}%`}</span>
                 </div>
             ))}
         </div>
@@ -172,6 +134,39 @@ function ForecastList({ data }: { data: Array<{ day: string; storage: number }> 
 export default function LabDashboardPage() {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [notificationOpen, setNotificationOpen] = useState(false);
+    const now = formatCurrentDateTime();
+
+    const stats: StatCardData[] = useMemo(() => [
+        {
+            title: "pH",
+            value: formatNullableValue(placeholderTelemetryRecord.ph, "pH"),
+            status: "warning",
+            inputTag: SENSOR_INPUT_TAGS.ph,
+        },
+        {
+            title: "Turbidity",
+            value: formatNullableValue(placeholderTelemetryRecord.turbidityNtu, "NTU"),
+            status: "warning",
+            inputTag: SENSOR_INPUT_TAGS.turbidity,
+        },
+        {
+            title: "Water Temperature",
+            value: formatNullableValue(placeholderTelemetryRecord.waterTemperatureC, "C"),
+            status: "warning",
+            inputTag: SENSOR_INPUT_TAGS.waterTemperature,
+        },
+        {
+            title: "Tank Level",
+            value: formatNullableValue(placeholderTelemetryRecord.ultrasonicWaterLevelPercent, "%"),
+            status: "warning",
+            inputTag: `${SENSOR_INPUT_TAGS.ultrasonicTrig} + ${SENSOR_INPUT_TAGS.ultrasonicEcho}`,
+        },
+    ], []);
+
+    const forecastData = useMemo(
+        () => getProjectionDays(7).map((item) => ({ day: item.day, storage: null })),
+        [],
+    );
 
     return (
         <div className={`app-shell-fixed ${sidebarOpen ? "sidebar-expanded" : "sidebar-collapsed"}`}>
@@ -208,20 +203,27 @@ export default function LabDashboardPage() {
                                                     <span>{notifications.length} new</span>
                                                 </div>
 
-                                                <div className="notification-list">
-                                                    {notifications.map((item) => (
-                                                        <div key={item.id} className="notification-item">
-                                                            <div className={`notification-alert-dot ${getSeverityClass(item.severity)}`} />
-                                                            <div>
-                                                                <div className="notification-item-top">
-                                                                    <strong>{item.title}</strong>
-                                                                    <span>{item.time}</span>
+                                                {notifications.length === 0 ? (
+                                                    <div className="empty-state compact">
+                                                        <strong>No active alerts</strong>
+                                                        <span>Anomaly notifications will appear after telemetry rules run.</span>
+                                                    </div>
+                                                ) : (
+                                                    <div className="notification-list">
+                                                        {notifications.map((item) => (
+                                                            <div key={item.id} className="notification-item">
+                                                                <div className={`notification-alert-dot ${getSeverityClass(item.severity)}`} />
+                                                                <div>
+                                                                    <div className="notification-item-top">
+                                                                        <strong>{item.title}</strong>
+                                                                        <span>{item.time}</span>
+                                                                    </div>
+                                                                    <p>{item.message}</p>
                                                                 </div>
-                                                                <p>{item.message}</p>
                                                             </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
+                                                        ))}
+                                                    </div>
+                                                )}
 
                                                 <button type="button" className="notification-view-all">
                                                     View all anomalies
@@ -241,9 +243,9 @@ export default function LabDashboardPage() {
                                     </div>
 
                                     <div>
-                                        <p className="weather-label">Today’s Weather</p>
-                                        <h2>29°C · Light Rain</h2>
-                                        <span>Rainfall expected around MSU area</span>
+                                        <p className="weather-label">Current Weather Input</p>
+                                        <h2>Awaiting weather API</h2>
+                                        <span>Last refreshed {now}</span>
                                     </div>
                                 </div>
 
@@ -251,19 +253,19 @@ export default function LabDashboardPage() {
                                     <div>
                                         <Droplets size={18} />
                                         <span>Rainfall</span>
-                                        <strong>12.4 mm</strong>
+                                        <strong>-- mm</strong>
                                     </div>
 
                                     <div>
                                         <Wind size={18} />
                                         <span>Wind</span>
-                                        <strong>8 km/h</strong>
+                                        <strong>-- km/h</strong>
                                     </div>
 
                                     <div>
                                         <ThermometerSun size={18} />
                                         <span>Humidity</span>
-                                        <strong>71%</strong>
+                                        <strong>--%</strong>
                                     </div>
                                 </div>
                             </div>
@@ -279,7 +281,7 @@ export default function LabDashboardPage() {
                                     <div className="section-header">
                                         <div>
                                             <h2>Rainfall Trend</h2>
-                                            <p>Past 7 days mock telemetry overview</p>
+                                            <p>Prepared for weather or local rainfall input</p>
                                         </div>
                                     </div>
                                     <MiniBarChart data={rainfallData} />
@@ -288,8 +290,8 @@ export default function LabDashboardPage() {
                                 <section className="lab-card">
                                     <div className="section-header">
                                         <div>
-                                            <h2>30-Day Storage Forecast</h2>
-                                            <p>Projected tank storage percentage</p>
+                                            <h2>Storage Forecast</h2>
+                                            <p>Prepared for {RAINWATER_TANK_NAME} ultrasonic level input</p>
                                         </div>
                                     </div>
                                     <ForecastList data={forecastData} />
@@ -301,30 +303,37 @@ export default function LabDashboardPage() {
                                     <div className="section-header">
                                         <div>
                                             <h2>Anomalies & Status</h2>
-                                            <p>Review recent warnings and system messages</p>
+                                            <p>Review warnings after anomaly detection runs</p>
                                         </div>
                                     </div>
 
-                                    <div className="anomaly-list">
-                                        {anomalies.map((item) => (
-                                            <div key={item.id} className="anomaly-item">
-                                                <div className="anomaly-top">
-                                                    <h3>{item.title}</h3>
-                                                    <span className={`severity-badge ${getSeverityClass(item.severity)}`}>
-                                                        {item.severity}
-                                                    </span>
+                                    {anomalies.length === 0 ? (
+                                        <div className="empty-state compact">
+                                            <strong>No active anomalies</strong>
+                                            <span>Sensor or camera anomalies will appear here after rules are connected.</span>
+                                        </div>
+                                    ) : (
+                                        <div className="anomaly-list">
+                                            {anomalies.map((item) => (
+                                                <div key={item.id} className="anomaly-item">
+                                                    <div className="anomaly-top">
+                                                        <h3>{item.title}</h3>
+                                                        <span className={`severity-badge ${getSeverityClass(item.severity)}`}>
+                                                            {item.severity}
+                                                        </span>
+                                                    </div>
+                                                    <p>{item.message}</p>
+                                                    <span className="anomaly-time">{item.time}</span>
                                                 </div>
-                                                <p>{item.message}</p>
-                                                <span className="anomaly-time">{item.time}</span>
-                                            </div>
-                                        ))}
-                                    </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </section>
 
                                 <section className="lab-card">
                                     <div className="section-header">
                                         <div>
-                                            <h2>Live Tank Camera</h2>
+                                            <h2>{RAINWATER_TANK_NAME} Camera</h2>
                                             <p>Raspberry Pi webcam stream for current lab inspection</p>
                                         </div>
                                     </div>
@@ -345,3 +354,4 @@ export default function LabDashboardPage() {
         </div>
     );
 }
+

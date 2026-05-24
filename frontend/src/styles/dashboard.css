@@ -121,6 +121,7 @@ body {
     display: flex;
     flex-direction: column;
     min-height: 0;
+    flex: 1;
 }
 
 .sidebar-brand-row {
@@ -166,6 +167,9 @@ body {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 2px;
 }
 
 .sidebar-link {
@@ -491,6 +495,7 @@ body {
     color: var(--muted);
 }
 
+/* Default image preview for normal static images */
 .image-preview {
     width: 100%;
     height: 260px;
@@ -505,27 +510,43 @@ body {
     color: var(--muted);
 }
 
+/* DASHBOARD CAMERA FEED */
 .dashboard-camera-frame {
     margin-bottom: 14px;
 }
 
-.dashboard-camera-frame .image-preview {
-    border: none;
-    border-radius: 0;
-}
-
+/* Camera feed wrapper */
 .camera-feed-frame {
     position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
     overflow: hidden;
     border-radius: 16px;
     border: 1px solid var(--border);
     background: #0b1220;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
+/* Important: show full Raspberry Pi stream without cropping */
+.camera-feed-frame .image-preview,
+.dashboard-camera-frame .image-preview {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border: none;
+    border-radius: 0;
+    background: #0b1220;
+    display: block;
+}
+
+/* Hidden image state when stream is unavailable */
 .camera-feed-image-hidden {
     opacity: 0;
 }
 
+/* Fallback message when camera fails */
 .camera-feed-fallback {
     position: absolute;
     inset: 0;
@@ -540,18 +561,22 @@ body {
     font-weight: 700;
 }
 
+/* Camera label overlay */
 .camera-feed-overlay {
     position: absolute;
-    top: 16px;
+    bottom: 16px;
     left: 16px;
+    z-index: 2;
     background: rgba(11, 18, 32, 0.72);
     color: #ffffff;
     font-size: 14px;
     font-weight: 700;
     padding: 8px 12px;
     border-radius: 12px;
+    backdrop-filter: blur(8px);
 }
 
+/* CAMERA STATUS GRID */
 .camera-status-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -577,6 +602,7 @@ body {
 .camera-status-item strong {
     font-size: 14px;
     color: var(--text);
+    overflow-wrap: anywhere;
 }
 
 .camera-status-value.connected {
@@ -589,6 +615,7 @@ body {
 
 .camera-status-url strong {
     overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 /* PROFILE MENU */
@@ -1119,6 +1146,82 @@ body.dark-mode .anomaly-table-badge {
     opacity: 1 !important;
 }
 
+.empty-state {
+    min-height: 180px;
+    border: 1px dashed rgba(15, 23, 42, 0.18);
+    border-radius: 18px;
+    background: rgba(248, 250, 252, 0.75);
+    color: var(--muted);
+    display: grid;
+    place-items: center;
+    text-align: center;
+    gap: 8px;
+    padding: 24px;
+}
+
+.empty-state.compact {
+    min-height: 112px;
+    padding: 18px;
+}
+
+.empty-state strong {
+    color: var(--text);
+    font-size: 15px;
+}
+
+.empty-state span {
+    max-width: 520px;
+    line-height: 1.5;
+}
+
+.session-loading-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: rgba(15, 23, 42, 0.32);
+    display: grid;
+    place-items: center;
+    padding: 24px;
+}
+
+.session-loading-card {
+    width: min(320px, 100%);
+    border-radius: 18px;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--text);
+    box-shadow: 0 30px 90px rgba(2, 6, 23, 0.24);
+    padding: 24px;
+    display: grid;
+    justify-items: center;
+    gap: 14px;
+}
+
+.session-loading-spinner {
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    border: 4px solid rgba(109, 76, 255, 0.16);
+    border-top-color: var(--purple);
+    animation: session-spin 0.8s linear infinite;
+}
+
+@keyframes session-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+body.dark-mode .empty-state {
+    background: var(--card-soft);
+    border-color: var(--border);
+}
+
+body.dark-mode .session-loading-card {
+    background: var(--card);
+    border-color: var(--border);
+}
+
 body.dark-mode .profile-dropdown,
 body.dark-mode .notification-dropdown,
 body.dark-mode .simulation-week-dropdown {
@@ -1196,5 +1299,9 @@ body.dark-mode .notification-view-all:hover {
 
     .dashboard-title {
         font-size: 28px;
+    }
+
+    .camera-feed-frame {
+        aspect-ratio: 4 / 3;
     }
 }

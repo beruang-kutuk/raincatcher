@@ -1,45 +1,28 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import "../../../styles/dashboard.css";
 import "../../../styles/telemetry.css";
 import Sidebar from "../../../components/layout/Sidebar";
 import ProfileMenu from "../../../components/layout/ProfileMenu";
+import {
+    RAINWATER_TANK_NAME,
+    SENSOR_INPUT_TAGS,
+    formatNullableValue,
+    getInputSourceSummary,
+    telemetryInputRows,
+    type SensorStatus,
+} from "../../../services/sensorInputs";
+import {
+    formatCurrentDate,
+    formatCurrentDateTime,
+} from "../../../services/time";
 
 type TelemetryCard = {
     label: string;
     value: string;
     unit: string;
     status: "normal" | "warning" | "flagged";
+    sourceTag: string;
 };
-
-type TelemetryRow = {
-    time: string;
-    turbidity: number;
-    temperature: number;
-    humidity: number;
-    waterLevel: number;
-    status: "live" | "normal";
-};
-
-const telemetryCards: TelemetryCard[] = [
-    { label: "Turbidity", value: "4.2", unit: "NTU", status: "normal" },
-    { label: "Temperature", value: "29.0", unit: "°C", status: "normal" },
-    { label: "Humidity", value: "71", unit: "%", status: "normal" },
-    { label: "Water Level", value: "76", unit: "%", status: "normal" },
-];
-
-const telemetryRows: TelemetryRow[] = [
-    { time: "10:00:00 AM", turbidity: 4.2, temperature: 29.0, humidity: 71, waterLevel: 76, status: "live" },
-    { time: "09:50:00 AM", turbidity: 4.1, temperature: 28.9, humidity: 70, waterLevel: 75, status: "normal" },
-    { time: "09:40:00 AM", turbidity: 4.3, temperature: 28.8, humidity: 72, waterLevel: 75, status: "normal" },
-    { time: "09:30:00 AM", turbidity: 4.2, temperature: 28.7, humidity: 71, waterLevel: 74, status: "normal" },
-    { time: "09:20:00 AM", turbidity: 4.0, temperature: 28.6, humidity: 70, waterLevel: 74, status: "normal" },
-    { time: "09:10:00 AM", turbidity: 4.1, temperature: 28.5, humidity: 69, waterLevel: 73, status: "normal" },
-];
-
-const trendData = [
-    4.2, 3.9, 3.6, 3.4, 3.4, 3.4, 3.7, 4.2, 4.3, 4.8, 4.5, 4.4,
-    4.4, 3.8, 3.5, 3.7, 4.2, 3.9, 4.0, 3.7, 3.7, 4.0, 4.2,
-];
 
 function getCardStatusClass(status: "normal" | "warning" | "flagged") {
     if (status === "warning") return "status-warning";
@@ -47,11 +30,18 @@ function getCardStatusClass(status: "normal" | "warning" | "flagged") {
     return "status-normal";
 }
 
+function mapSensorStatus(status: SensorStatus): "normal" | "warning" | "flagged" {
+    if (status === "online") return "normal";
+    if (status === "offline") return "flagged";
+    return "warning";
+}
+
 function TelemetryMetricCard({
     label,
     value,
     unit,
     status,
+    sourceTag,
 }: TelemetryCard) {
     return (
         <div className="telemetry-metric-card">
@@ -65,7 +55,7 @@ function TelemetryMetricCard({
                     </div>
 
                     <span className={`telemetry-inline-status ${getCardStatusClass(status)}`}>
-                        {status}
+                        {sourceTag}
                     </span>
                 </div>
             </div>
@@ -78,8 +68,21 @@ function TrendChart({ values }: { values: number[] }) {
     const height = 220;
     const padding = 24;
 
+    if (values.length < 2) {
+        return (
+            <div className="telemetry-chart-shell telemetry-chart-empty">
+                <div className="empty-state compact">
+                    <strong>No turbidity history yet</strong>
+                    <span>
+                        The graph will render after readings arrive from {SENSOR_INPUT_TAGS.turbidity}.
+                    </span>
+                </div>
+            </div>
+        );
+    }
+
     const min = 0;
-    const max = 6;
+    const max = Math.max(6, ...values);
 
     const points = values.map((value, index) => {
         const x = padding + (index * (width - padding * 2)) / (values.length - 1);
@@ -102,7 +105,7 @@ function TrendChart({ values }: { values: number[] }) {
                 className="telemetry-chart-svg"
                 preserveAspectRatio="none"
             >
-                {[0, 1.5, 3, 4.5, 6].map((tick) => {
+                {[0, max * 0.25, max * 0.5, max * 0.75, max].map((tick) => {
                     const y =
                         height - padding - ((tick - min) / (max - min)) * (height - padding * 2);
                     return (
@@ -133,20 +136,51 @@ function TrendChart({ values }: { values: number[] }) {
                     );
                 })}
             </svg>
-
-            <div className="telemetry-chart-labels">
-                <span>10:00 AM</span>
-                <span>4:00 PM</span>
-                <span>10:00 PM</span>
-                <span>4:00 AM</span>
-                <span>10:00 AM</span>
-            </div>
         </div>
     );
 }
 
 export default function TelemetryPage() {
     const [sidebarOpen, setSidebarOpen] = useState(true);
+    const currentDate = formatCurrentDate();
+    const currentDateTime = formatCurrentDateTime();
+    const liveRows = telemetryInputRows;
+    const latest = liveRows[0];
+
+    const telemetryCards: TelemetryCard[] = useMemo(() => [
+        {
+            label: "pH",
+            value: formatNullableValue(latest.ph),
+            unit: "pH",
+            status: mapSensorStatus(latest.sensorStatus),
+            sourceTag: SENSOR_INPUT_TAGS.ph,
+        },
+        {
+            label: "Turbidity",
+            value: formatNullableValue(latest.turbidityNtu),
+            unit: "NTU",
+            status: mapSensorStatus(latest.sensorStatus),
+            sourceTag: SENSOR_INPUT_TAGS.turbidity,
+        },
+        {
+            label: "Water Temperature",
+            value: formatNullableValue(latest.waterTemperatureC),
+            unit: "C",
+            status: mapSensorStatus(latest.sensorStatus),
+            sourceTag: SENSOR_INPUT_TAGS.waterTemperature,
+        },
+        {
+            label: "Ultrasonic Water Level",
+            value: formatNullableValue(latest.ultrasonicWaterLevelPercent),
+            unit: "%",
+            status: mapSensorStatus(latest.sensorStatus),
+            sourceTag: `${SENSOR_INPUT_TAGS.ultrasonicTrig} + ${SENSOR_INPUT_TAGS.ultrasonicEcho}`,
+        },
+    ], [latest]);
+
+    const turbidityTrend = liveRows
+        .map((row) => row.turbidityNtu)
+        .filter((value): value is number => typeof value === "number");
 
     return (
         <div className={`app-shell-fixed ${sidebarOpen ? "sidebar-expanded" : "sidebar-collapsed"}`}>
@@ -165,10 +199,10 @@ export default function TelemetryPage() {
 
                             <div className="telemetry-topbar-right">
                                 <button className="telemetry-filter-btn" type="button">
-                                    21 Apr 2026
+                                    {currentDate}
                                 </button>
                                 <button className="telemetry-filter-btn" type="button">
-                                    All Sensors
+                                    {RAINWATER_TANK_NAME}
                                 </button>
 
                                 <div className="dashboard-actions">
@@ -193,69 +227,64 @@ export default function TelemetryPage() {
                                     <table className="telemetry-table">
                                         <thead>
                                             <tr>
-                                                <th>Time</th>
+                                                <th>Timestamp</th>
+                                                <th>pH</th>
                                                 <th>Turbidity (NTU)</th>
-                                                <th>Temp (°C)</th>
-                                                <th>Humidity (%)</th>
+                                                <th>Temp (C)</th>
                                                 <th>Water Level (%)</th>
                                                 <th>Status</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {telemetryRows.map((row) => (
-                                                <tr key={row.time}>
+                                            {liveRows.map((row) => (
+                                                <tr key={row.id}>
                                                     <td>
                                                         <div className="telemetry-time-cell">
-                                                            <span>{row.time}</span>
-                                                            {row.status === "live" && (
-                                                                <span className="telemetry-live-badge">LIVE</span>
-                                                            )}
+                                                            <span>{row.timestamp ?? currentDateTime}</span>
+                                                            <span className="telemetry-live-badge">INPUT READY</span>
                                                         </div>
                                                     </td>
-                                                    <td>{row.turbidity}</td>
-                                                    <td>{row.temperature}</td>
-                                                    <td>{row.humidity}</td>
-                                                    <td>{row.waterLevel}</td>
+                                                    <td>{formatNullableValue(row.ph)}</td>
+                                                    <td>{formatNullableValue(row.turbidityNtu)}</td>
+                                                    <td>{formatNullableValue(row.waterTemperatureC)}</td>
+                                                    <td>{formatNullableValue(row.ultrasonicWaterLevelPercent)}</td>
                                                     <td>
-                                                        <span className="telemetry-dot-status" />
+                                                        <span className="telemetry-dot-status pending" />
+                                                        <span className="sr-only">{row.sensorStatus}</span>
                                                     </td>
                                                 </tr>
                                             ))}
                                         </tbody>
                                     </table>
-
-                                    <button className="telemetry-view-more" type="button">
-                                        View More
-                                    </button>
                                 </div>
                             </section>
 
                             <section className="telemetry-panel telemetry-trend-panel">
                                 <div className="telemetry-panel-header telemetry-panel-header-split">
-                                    <h2>Turbidity Trend (Last 24 Hours)</h2>
+                                    <h2>Turbidity Trend</h2>
                                     <button className="telemetry-filter-btn small" type="button">
-                                        Turbidity (NTU)
+                                        {SENSOR_INPUT_TAGS.turbidity}
                                     </button>
                                 </div>
 
-                                <TrendChart values={trendData} />
+                                <TrendChart values={turbidityTrend} />
                             </section>
                         </div>
 
                         <section className="telemetry-bottom-strip">
                             <div className="telemetry-strip-item">
                                 <p className="telemetry-strip-label">Data Source</p>
-                                <h3>RC-01 Telemetry Unit</h3>
+                                <h3>{getInputSourceSummary(latest.tags)}</h3>
                             </div>
 
                             <div className="telemetry-strip-item">
                                 <p className="telemetry-strip-label">Last Updated</p>
-                                <h3>10:00:00 AM, 21 Apr 2026</h3>
+                                <h3>{currentDateTime}</h3>
                             </div>
 
                             <div className="telemetry-strip-item">
                                 <p className="telemetry-strip-label">Connection Status</p>
-                                <h3 className="connected">Connected</h3>
+                                <h3 className="connected">Awaiting ESP32 input</h3>
                             </div>
                         </section>
                     </div>
@@ -264,3 +293,4 @@ export default function TelemetryPage() {
         </div>
     );
 }
+

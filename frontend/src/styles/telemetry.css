@@ -202,6 +202,16 @@
     margin: 0 auto;
 }
 
+.telemetry-dot-status.pending {
+    background: #f59e0b;
+}
+
+.telemetry-chart-empty {
+    display: grid;
+    align-items: center;
+    min-height: 260px;
+}
+
 .telemetry-view-more {
     margin: 16px auto 0;
     display: block;

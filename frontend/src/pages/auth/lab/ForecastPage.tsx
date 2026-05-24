@@ -1,8 +1,18 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import "../../../styles/dashboard.css";
 import "../../../styles/forecast.css";
 import Sidebar from "../../../components/layout/Sidebar";
 import ProfileMenu from "../../../components/layout/ProfileMenu";
+import {
+    forecastInputTags,
+    getEmptyStorageProjection,
+    getForecastPlaceholders,
+} from "../../../services/forecastPlaceholders";
+import { RAINWATER_TANK_NAME } from "../../../services/sensorInputs";
+import {
+    formatCurrentDate,
+    formatCurrentDateTime,
+} from "../../../services/time";
 
 type ForecastMetric = {
     label: string;
@@ -14,95 +24,33 @@ type ForecastMetric = {
 type StorageProjection = {
     day: string;
     date: string;
-    value: number;
-};
-
-type InsightItem = {
-    title: string;
-    description: string;
-};
-
-type RecommendationItem = {
-    title: string;
-    description: string;
+    value: number | null;
 };
 
 const forecastMetrics: ForecastMetric[] = [
     {
-        label: "Total Rainfall (Next 7 Days)",
-        value: "48.6 mm",
-        meta: "15% vs last 7 days",
-        status: "normal",
+        label: "Total Rainfall Forecast",
+        value: "--",
+        meta: "Awaiting weather forecast input",
+        status: "warning",
     },
     {
         label: "Peak Daily Rainfall",
-        value: "18.2 mm",
-        meta: "Friday, 16 May",
-        status: "normal",
+        value: "--",
+        meta: "AccuWeather API data later",
+        status: "warning",
     },
     {
-        label: "Storage Level (7 Days)",
-        value: "78%",
-        meta: "8% vs today",
-        status: "normal",
+        label: "Storage Level Forecast",
+        value: "--",
+        meta: "Awaiting ultrasonic water level",
+        status: "warning",
     },
     {
         label: "Risk Level",
-        value: "Moderate",
-        meta: "Monitor closely",
+        value: "Pending",
+        meta: "Requires telemetry and weather",
         status: "warning",
-    },
-];
-
-const rainfallTrend = [5, 4, 6, 5.5, 11, 17.5, 14.5];
-
-const rainfallLabels = [
-    "10 May\nSat",
-    "11 May\nSun",
-    "12 May\nMon",
-    "13 May\nTue",
-    "14 May\nWed",
-    "15 May\nThu",
-    "16 May\nFri",
-];
-
-const storageProjection: StorageProjection[] = [
-    { day: "Today", date: "21 Apr", value: 78 },
-    { day: "Tomorrow", date: "22 Apr", value: 75 },
-    { day: "Wed", date: "23 Apr", value: 72 },
-    { day: "Thu", date: "24 Apr", value: 70 },
-    { day: "Fri", date: "25 Apr", value: 68 },
-    { day: "Sat", date: "26 Apr", value: 66 },
-    { day: "Sun", date: "27 Apr", value: 64 },
-];
-
-const insights: InsightItem[] = [
-    {
-        title: "Above-average rainfall",
-        description: "15% more rainfall expected compared to last 7 days.",
-    },
-    {
-        title: "Peak on 15 May",
-        description: "Highest daily rainfall of 18.2 mm expected.",
-    },
-    {
-        title: "Storage stays healthy",
-        description: "Levels remain above 70% throughout the period.",
-    },
-];
-
-const recommendations: RecommendationItem[] = [
-    {
-        title: "No immediate action required",
-        description: "Storage levels are within safe range.",
-    },
-    {
-        title: "Continue monitoring forecast updates",
-        description: "Especially around 15-16 May.",
-    },
-    {
-        title: "Review water usage plans",
-        description: "If rainfall is lower than predicted.",
     },
 ];
 
@@ -146,8 +94,19 @@ function RainfallForecastChart({
     const paddingTop = 28;
     const paddingBottom = 42;
 
+    if (values.length < 2) {
+        return (
+            <div className="forecast-chart-shell">
+                <div className="empty-state compact">
+                    <strong>No rainfall forecast loaded</strong>
+                    <span>Chart data will render from weather forecast input when the backend is connected.</span>
+                </div>
+            </div>
+        );
+    }
+
     const min = 0;
-    const max = 25;
+    const max = Math.max(25, ...values);
 
     const points = values.map((value, index) => {
         const x =
@@ -162,32 +121,12 @@ function RainfallForecastChart({
     });
 
     const linePoints = points.map((p) => `${p.x},${p.y}`).join(" ");
-
     const areaPoints = [
         `${points[0].x},${height - paddingBottom}`,
         ...points.map((p) => `${p.x},${p.y}`),
         `${points[points.length - 1].x},${height - paddingBottom}`,
     ].join(" ");
-
-    const uncertaintyTop = points
-        .map((p, i) => {
-            const extra = [3, 2.8, 4, 4.5, 4.5, 5, 4.2][i];
-            return `${p.x},${Math.max(p.y - extra * 6, paddingTop)}`;
-        })
-        .join(" ");
-
-    const uncertaintyBottom = [...points]
-        .reverse()
-        .map((p, i) => {
-            const idx = points.length - 1 - i;
-            const extra = [3, 2.8, 4, 4.5, 4.5, 5, 4.2][idx];
-            return `${p.x},${Math.min(p.y + extra * 6, height - paddingBottom)}`;
-        })
-        .join(" ");
-
-    const uncertaintyPolygon = `${uncertaintyTop} ${uncertaintyBottom}`;
-
-    const ticks = [0, 5, 10, 15, 20, 25];
+    const ticks = [0, max * 0.25, max * 0.5, max * 0.75, max];
 
     return (
         <div className="forecast-chart-shell">
@@ -212,13 +151,12 @@ function RainfallForecastChart({
                                 className="forecast-grid-line"
                             />
                             <text x={6} y={y + 4} className="forecast-axis-text">
-                                {tick}
+                                {Math.round(tick)}
                             </text>
                         </g>
                     );
                 })}
 
-                <polygon points={uncertaintyPolygon} className="forecast-uncertainty-fill" />
                 <polygon points={areaPoints} className="forecast-area-fill" />
                 <polyline points={linePoints} className="forecast-line" />
 
@@ -234,15 +172,11 @@ function RainfallForecastChart({
             </svg>
 
             <div className="forecast-chart-labels">
-                {labels.map((label) => {
-                    const [line1, line2] = label.split("\n");
-                    return (
-                        <div key={label} className="forecast-chart-label">
-                            <span>{line1}</span>
-                            <span>{line2}</span>
-                        </div>
-                    );
-                })}
+                {labels.map((label) => (
+                    <div key={label} className="forecast-chart-label">
+                        <span>{label}</span>
+                    </div>
+                ))}
             </div>
         </div>
     );
@@ -250,6 +184,12 @@ function RainfallForecastChart({
 
 export default function ForecastPage() {
     const [sidebarOpen, setSidebarOpen] = useState(true);
+    const generatedAt = formatCurrentDateTime();
+    const storageProjection = useMemo<StorageProjection[]>(() => getEmptyStorageProjection(7), []);
+    const forecastModules = useMemo(() => getForecastPlaceholders(), []);
+    const aiRecommendation = forecastModules.find((item) => item.id === "ai-recommendation");
+    const rainfallTrend: number[] = [];
+    const rainfallLabels = storageProjection.map((item) => item.date);
 
     return (
         <div className={`app-shell-fixed ${sidebarOpen ? "sidebar-expanded" : "sidebar-collapsed"}`}>
@@ -268,11 +208,11 @@ export default function ForecastPage() {
 
                             <div className="forecast-topbar-right">
                                 <button className="forecast-filter-btn" type="button">
-                                    21 Apr 2026
+                                    {formatCurrentDate()}
                                 </button>
 
                                 <button className="forecast-filter-btn" type="button">
-                                    All Sensors
+                                    {RAINWATER_TANK_NAME}
                                 </button>
 
                                 <div className="dashboard-actions">
@@ -295,7 +235,7 @@ export default function ForecastPage() {
                                     </div>
 
                                     <button className="forecast-filter-btn small" type="button">
-                                        Daily
+                                        Weather API pending
                                     </button>
                                 </div>
 
@@ -304,17 +244,12 @@ export default function ForecastPage() {
                                         <span className="forecast-legend-dot forecast-legend-dot-line" />
                                         <span>Predicted Rainfall (mm)</span>
                                     </div>
-
-                                    <div className="forecast-legend-item">
-                                        <span className="forecast-legend-dot forecast-legend-dot-range" />
-                                        <span>Uncertainty Range</span>
-                                    </div>
                                 </div>
 
                                 <RainfallForecastChart values={rainfallTrend} labels={rainfallLabels} />
 
                                 <div className="forecast-info-note">
-                                    Forecast updates every 6 hours using the latest weather data.
+                                    Forecast generated time: {generatedAt}. Data will update when telemetry, weather forecast, and AccuWeather input are connected.
                                 </div>
                             </section>
 
@@ -333,11 +268,13 @@ export default function ForecastPage() {
                                                 <div className="forecast-storage-progress">
                                                     <div
                                                         className="forecast-storage-progress-fill"
-                                                        style={{ width: `${item.value}%` }}
+                                                        style={{ width: `${item.value ?? 0}%` }}
                                                     />
                                                 </div>
 
-                                                <div className="forecast-storage-value">{item.value}%</div>
+                                                <div className="forecast-storage-value">
+                                                    {item.value === null ? "--" : `${item.value}%`}
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
@@ -345,41 +282,31 @@ export default function ForecastPage() {
 
                                 <section className="forecast-panel">
                                     <div className="forecast-panel-header">
-                                        <h2>Recommendations</h2>
+                                        <h2>AI Recommendations</h2>
                                     </div>
 
                                     <div className="forecast-recommendation-list">
-                                        {recommendations.map((item) => (
-                                            <div key={item.title} className="forecast-recommendation-item">
-                                                <div>
-                                                    <h3>{item.title}</h3>
-                                                    <p>{item.description}</p>
-                                                </div>
-                                                <span className="forecast-arrow">›</span>
+                                        <div className="forecast-recommendation-item">
+                                            <div>
+                                                <h3>{aiRecommendation?.title ?? "AI Recommendation"}</h3>
+                                                <p>
+                                                    {aiRecommendation?.message ?? "Recommendation service placeholder is ready."}
+                                                </p>
+                                                <p>
+                                                    Inputs: {forecastInputTags.join(", ")}
+                                                </p>
                                             </div>
-                                        ))}
+                                            <span className="forecast-arrow">AI</span>
+                                        </div>
                                     </div>
                                 </section>
                             </div>
                         </div>
 
-                        <section className="forecast-panel forecast-insights-panel">
-                            <div className="forecast-panel-header">
-                                <h2>Key Insights</h2>
-                            </div>
-
-                            <div className="forecast-insights-grid">
-                                {insights.map((item) => (
-                                    <div key={item.title} className="forecast-insight-item">
-                                        <h3>{item.title}</h3>
-                                        <p>{item.description}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        </section>
                     </div>
                 </main>
             </div>
         </div>
     );
 }
+

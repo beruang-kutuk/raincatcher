@@ -85,6 +85,69 @@ export default function App() {
         />
 
         <Route
+          path="/admin/devices"
+          element={
+            <RequireAuth allowedRoles={adminRoles}>
+              <SystemAdminPage />
+            </RequireAuth>
+          }
+        />
+
+        <Route
+          path="/admin/system-health"
+          element={
+            <RequireAuth allowedRoles={adminRoles}>
+              <SystemAdminPage />
+            </RequireAuth>
+          }
+        />
+
+        <Route
+          path="/admin/thresholds"
+          element={
+            <RequireAuth allowedRoles={adminRoles}>
+              <SystemAdminPage />
+            </RequireAuth>
+          }
+        />
+
+        <Route
+          path="/admin/forecast-settings"
+          element={
+            <RequireAuth allowedRoles={adminRoles}>
+              <SystemAdminPage />
+            </RequireAuth>
+          }
+        />
+
+        <Route
+          path="/admin/report-templates"
+          element={
+            <RequireAuth allowedRoles={adminRoles}>
+              <SystemAdminPage />
+            </RequireAuth>
+          }
+        />
+
+        <Route
+          path="/admin/diagnostics"
+          element={
+            <RequireAuth allowedRoles={adminRoles}>
+              <SystemAdminPage />
+            </RequireAuth>
+          }
+        />
+
+        <Route
+          path="/admin/audit-logs"
+          element={
+            <RequireAuth allowedRoles={adminRoles}>
+              <SystemAdminPage />
+            </RequireAuth>
+          }
+        />
+
+        <Route
           path="/admin/access"
           element={
             <RequireAuth allowedRoles={adminRoles}>

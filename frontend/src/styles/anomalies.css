@@ -135,15 +135,18 @@
 }
 
 .anomalies-clear-btn {
-    height: 44px;
-    padding: 0 18px;
+    height: 40px;
+    padding: 0 14px;
     border: 1px solid var(--border);
     border-radius: 12px;
     background: #fff;
     color: var(--text);
-    font-size: 14px;
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: 700;
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }
 
 /* TABLE */
@@ -232,9 +235,9 @@
 }
 
 .anomalies-icon-btn {
+    width: 36px;
     height: 36px;
-    min-width: 44px;
-    padding: 0 12px;
+    padding: 0;
     border: 1px solid var(--border);
     border-radius: 10px;
     background: #fff;
@@ -242,6 +245,14 @@
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.anomalies-icon-btn:hover {
+    border-color: rgba(109, 76, 255, 0.35);
+    color: var(--purple);
 }
 
 .anomalies-sparkle-btn {
@@ -254,6 +265,9 @@
     font-size: 18px;
     font-weight: 800;
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 /* FOOTER */
@@ -348,9 +362,11 @@
     border-radius: 10px;
     background: #fff;
     color: var(--text);
-    font-size: 22px;
-    line-height: 1;
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
 }
 
 .anomalies-popup-grid {
@@ -465,6 +481,43 @@
     color: var(--muted);
 }
 
+.anomalies-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.anomalies-form-field {
+    display: grid;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.anomalies-form-field.full,
+.anomalies-popup-actions.full {
+    grid-column: 1 / -1;
+}
+
+.anomalies-form-field input,
+.anomalies-form-field select,
+.anomalies-form-field textarea {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: #fff;
+    color: var(--text);
+    padding: 12px 14px;
+    font-size: 14px;
+    outline: none;
+}
+
+.anomalies-form-field textarea {
+    min-height: 112px;
+    resize: vertical;
+}
+
 /* RESPONSIVE */
 @media (max-width: 1200px) {
     .anomalies-summary-grid {
@@ -512,6 +565,10 @@
     .anomalies-popup-card {
         padding: 18px;
     }
+
+    .anomalies-form-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* RESOLVED CASES ICON */
@@ -555,7 +612,14 @@
 .anomalies-popup-card.resolved {
     width: min(780px, 100%);
     max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.anomalies-resolved-list {
+    flex: 1;
     overflow-y: auto;
+    max-height: 340px;
 }
 
 .anomalies-resolved-summary {

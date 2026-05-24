@@ -1,203 +1,112 @@
-import { Fragment, useState } from "react";
+import { Fragment, useMemo, useState, type FormEvent } from "react";
 import {
+    Check,
+    Eye,
+    Pause,
+    Pencil,
     ShieldCheck,
-    SlidersHorizontal,
     UserCog,
     Users,
 } from "lucide-react";
 import "../../../styles/dashboard.css";
 import "../../../styles/admin.css";
 import Sidebar from "../../../components/layout/Sidebar";
-import ProfileMenu from "../../../components/layout/ProfileMenu";
+import AdminTopbar from "../../../components/layout/AdminTopbar";
+import {
+    getPermissionLabel,
+    initialManagedUsers,
+    permissionDefinitions,
+    roleLabels,
+    rolePolicies,
+    type ManagedRole,
+    type ManagedUser,
+    type UserAccessStatus,
+} from "../../../services/adminData";
 
-type AccessStatus = "active" | "limited" | "suspended" | "planned";
-type AccessRole = "SYSTEM_ADMIN" | "LAB_ASSISTANT" | "VIEWER";
-type ManagedUserField = "role" | "accessScope" | "status";
-
-type UserAccessRow = {
+type SelectedUserState = {
     id: number;
-    name: string;
-    email: string;
-    role: AccessRole;
-    accessScope: string;
-    status: AccessStatus;
-};
-
-type RolePolicy = {
-    id: number;
-    role: AccessRole;
-    description: string;
-    permissions: string[];
-    status: AccessStatus;
-};
+    mode: "view" | "edit";
+} | null;
 
 type NewUserForm = {
     name: string;
     email: string;
-    role: Exclude<AccessRole, "SYSTEM_ADMIN">;
-    accessScope: string;
+    phone: string;
+    role: Exclude<ManagedRole, "SUPER_ADMIN">;
 };
 
-const roleLabels: Record<AccessRole, string> = {
-    SYSTEM_ADMIN: "Super Admin",
-    LAB_ASSISTANT: "Lab Assistant",
-    VIEWER: "Viewer",
-};
+type EditableUserField = "name" | "email" | "phone" | "role" | "status";
 
-const scopeOptions = [
-    "Lab monitoring, reports, anomaly workflow",
-    "Telemetry and anomaly review",
-    "Tank images and maintenance review",
-    "Reports and benchmark summaries",
-    "Read-only monitoring evidence",
+const assignableRoles: Array<Exclude<ManagedRole, "SUPER_ADMIN">> = [
+    "LAB_ASSISTANT",
+    "MAINTENANCE",
+    "VIEWER",
 ];
 
-const initialUserAccessRows: UserAccessRow[] = [
-    {
-        id: 1,
-        name: "Super Admin",
-        email: "admin@raincatcher.local",
-        role: "SYSTEM_ADMIN",
-        accessScope: "Full platform control",
-        status: "active",
-    },
-    {
-        id: 2,
-        name: "Jasmine Tan",
-        email: "jasmine@example.com",
-        role: "LAB_ASSISTANT",
-        accessScope: "Lab monitoring, reports, anomaly workflow",
-        status: "active",
-    },
-    {
-        id: 3,
-        name: "Maintenance Team",
-        email: "maintenance@raincatcher.local",
-        role: "LAB_ASSISTANT",
-        accessScope: "Tank images and maintenance review",
-        status: "limited",
-    },
-];
-
-const rolePolicies: RolePolicy[] = [
-    {
-        id: 1,
-        role: "SYSTEM_ADMIN",
-        description: "Superadmin role with full authority over users, system rules, and configuration.",
-        permissions: [
-            "View admin dashboard",
-            "Manage lab users",
-            "Assign roles and access scopes",
-            "Suspend or reactivate lab accounts",
-            "Manage thresholds",
-            "Configure report and benchmark rules",
-        ],
-        status: "active",
-    },
-    {
-        id: 2,
-        role: "LAB_ASSISTANT",
-        description: "Operates the RWH monitoring workflow.",
-        permissions: [
-            "View lab dashboard",
-            "Review telemetry",
-            "Resolve anomalies",
-            "View tank images",
-            "Generate reports",
-            "Run simulations",
-        ],
-        status: "active",
-    },
-    {
-        id: 3,
-        role: "VIEWER",
-        description: "Read-only role for future supervisors or external evaluators.",
-        permissions: [
-            "View dashboards",
-            "View reports",
-            "View benchmark summaries",
-        ],
-        status: "planned",
-    },
-];
-
-function getAccessStatusClass(status: AccessStatus) {
-    if (status === "planned" || status === "limited") return "admin-status-warning";
-    if (status === "suspended") return "admin-status-critical";
+function getStatusClass(status: UserAccessStatus | "Active" | "Planned") {
+    if (status === "Suspended") return "admin-status-critical";
+    if (status === "Pending" || status === "Planned") return "admin-status-warning";
     return "admin-status-normal";
 }
 
-function getNextId(users: UserAccessRow[]) {
+function getNextId(users: ManagedUser[]) {
     return Math.max(...users.map((user) => user.id), 0) + 1;
 }
 
 export default function AccessControlPage() {
     const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [users, setUsers] = useState<ManagedUser[]>(initialManagedUsers);
+    const [selectedUser, setSelectedUser] = useState<SelectedUserState>(null);
     const [selectedRole, setSelectedRole] = useState(rolePolicies[0]);
-    const [users, setUsers] = useState<UserAccessRow[]>(initialUserAccessRows);
-    const [expandedUserId, setExpandedUserId] = useState<number | null>(null);
     const [newUser, setNewUser] = useState<NewUserForm>({
         name: "",
         email: "",
+        phone: "",
         role: "LAB_ASSISTANT",
-        accessScope: scopeOptions[0],
     });
 
-    const labUsers = users.filter((user) => user.role !== "SYSTEM_ADMIN");
-    const activeLabUsers = labUsers.filter((user) => user.status === "active").length;
-    const restrictedUsers = labUsers.filter(
-        (user) => user.status === "limited" || user.status === "suspended",
-    ).length;
+    const managedUsers = useMemo(
+        () => users.filter((user) => user.role !== "SUPER_ADMIN"),
+        [users],
+    );
+    const activeUsers = managedUsers.filter((user) => user.status === "Active").length;
+    const suspendedUsers = managedUsers.filter((user) => user.status === "Suspended").length;
 
-    function updateUserAccess(
-        id: number,
-        field: ManagedUserField,
-        value: string,
-    ) {
+    function updateUser(id: number, field: EditableUserField, value: string) {
         setUsers((prev) =>
             prev.map((user) => {
-                if (user.id !== id || user.role === "SYSTEM_ADMIN") return user;
-
-                if (field === "role") {
-                    return {
-                        ...user,
-                        role: value as Exclude<AccessRole, "SYSTEM_ADMIN">,
-                    };
-                }
-
-                if (field === "status") {
-                    return {
-                        ...user,
-                        status: value as Exclude<AccessStatus, "planned">,
-                    };
+                if (user.id !== id) return user;
+                if (user.role === "SUPER_ADMIN" && (field === "role" || field === "status")) {
+                    return user;
                 }
 
                 return {
                     ...user,
-                    accessScope: value,
-                };
-            })
+                    [field]: value,
+                } as ManagedUser;
+            }),
         );
     }
 
     function toggleUserSuspension(id: number) {
         setUsers((prev) =>
             prev.map((user) => {
-                if (user.id !== id || user.role === "SYSTEM_ADMIN") return user;
+                if (user.id !== id || user.role === "SUPER_ADMIN") return user;
 
                 return {
                     ...user,
-                    status: user.status === "suspended" ? "active" : "suspended",
+                    status: user.status === "Suspended" ? "Active" : "Suspended",
                 };
-            })
+            }),
         );
     }
 
-    function addLabUser(event: React.FormEvent) {
+    function addUser(event: FormEvent) {
         event.preventDefault();
 
         const name = newUser.name.trim();
         const email = newUser.email.trim();
+        const phone = newUser.phone.trim();
 
         if (!name || !email) return;
 
@@ -207,17 +116,18 @@ export default function AccessControlPage() {
                 id: getNextId(prev),
                 name,
                 email,
+                phone: phone || "Not provided",
                 role: newUser.role,
-                accessScope: newUser.accessScope,
-                status: "active",
+                status: "Active",
+                lastLogin: "Not signed in yet",
             },
         ]);
 
         setNewUser({
             name: "",
             email: "",
+            phone: "",
             role: "LAB_ASSISTANT",
-            accessScope: scopeOptions[0],
         });
     }
 
@@ -231,24 +141,14 @@ export default function AccessControlPage() {
             <div className="content-shell">
                 <main className="dashboard-content-scroll">
                     <div className="admin-page page-container">
-                        <div className="admin-topbar">
-                            <div>
-                                <span className="admin-kicker">Super Admin RBAC</span>
-                                <h1 className="admin-page-title">Lab User Control</h1>
-                                <p className="admin-page-subtitle">
-                                    Superadmin can manage lab users, assign access scope,
-                                    suspend accounts, and keep admin controls separated from
-                                    the lab monitoring workflow.
-                                </p>
-                            </div>
-
-                            <div className="dashboard-actions">
-                                <button className="admin-secondary-btn" type="button">
-                                    Frontend Mock Policy
-                                </button>
-                                <ProfileMenu />
-                            </div>
-                        </div>
+                        <AdminTopbar
+                            kicker="Super Admin RBAC"
+                            title="Access Control"
+                            subtitle="Manage users, assign roles, inspect permissions, and keep system-wide controls separated from Lab Assistant personal preferences."
+                            secondaryAction={
+                                <button className="admin-secondary-btn" type="button">Frontend Policy</button>
+                            }
+                        />
 
                         <div className="admin-summary-grid">
                             <article className="admin-summary-card">
@@ -257,13 +157,13 @@ export default function AccessControlPage() {
                                         <ShieldCheck size={22} />
                                     </div>
                                     <span className="admin-status-pill admin-status-normal">
-                                        superadmin
+                                        admin
                                     </span>
                                 </div>
                                 <p className="admin-summary-label">Admin Authority</p>
                                 <h3 className="admin-summary-value">Full</h3>
                                 <p className="admin-summary-meta">
-                                    Superadmin owns user, threshold, simulation, and benchmark controls.
+                                    Admin can manage users, roles, permissions, and system controls.
                                 </p>
                             </article>
 
@@ -276,10 +176,10 @@ export default function AccessControlPage() {
                                         active
                                     </span>
                                 </div>
-                                <p className="admin-summary-label">Lab Users</p>
-                                <h3 className="admin-summary-value">{labUsers.length}</h3>
+                                <p className="admin-summary-label">Managed Users</p>
+                                <h3 className="admin-summary-value">{managedUsers.length}</h3>
                                 <p className="admin-summary-meta">
-                                    {activeLabUsers} active users can access lab modules.
+                                    {activeUsers} active non-admin accounts can use assigned modules.
                                 </p>
                             </article>
 
@@ -292,26 +192,26 @@ export default function AccessControlPage() {
                                         controlled
                                     </span>
                                 </div>
-                                <p className="admin-summary-label">Restricted Users</p>
-                                <h3 className="admin-summary-value">{restrictedUsers}</h3>
+                                <p className="admin-summary-label">Suspended Users</p>
+                                <h3 className="admin-summary-value">{suspendedUsers}</h3>
                                 <p className="admin-summary-meta">
-                                    Limited or suspended accounts remain visible for audit.
+                                    Suspended accounts remain visible for audit history.
                                 </p>
                             </article>
 
                             <article className="admin-summary-card">
                                 <div className="admin-summary-top">
                                     <div className="admin-summary-icon admin-status-normal">
-                                        <SlidersHorizontal size={22} />
+                                        <ShieldCheck size={22} />
                                     </div>
                                     <span className="admin-status-pill admin-status-normal">
-                                        enforced
+                                        roles
                                     </span>
                                 </div>
-                                <p className="admin-summary-label">Route Groups</p>
-                                <h3 className="admin-summary-value">2</h3>
+                                <p className="admin-summary-label">Role Policies</p>
+                                <h3 className="admin-summary-value">{rolePolicies.length}</h3>
                                 <p className="admin-summary-meta">
-                                    Admin and lab route groups are separated by role guard.
+                                    Super Admin, Lab Assistant, Maintenance, and Viewer are defined.
                                 </p>
                             </article>
                         </div>
@@ -321,7 +221,7 @@ export default function AccessControlPage() {
                                 <div className="admin-panel-header">
                                     <div>
                                         <h2>Manage Lab Users</h2>
-                                        <p>Review users, adjust access details, and suspend accounts.</p>
+                                        <p>Simple user table with view, edit, role assignment, and suspend actions.</p>
                                     </div>
                                     <Users size={20} />
                                 </div>
@@ -337,8 +237,9 @@ export default function AccessControlPage() {
                                         </thead>
                                         <tbody>
                                             {users.map((row) => {
-                                                const isSuperAdmin = row.role === "SYSTEM_ADMIN";
-                                                const isExpanded = expandedUserId === row.id;
+                                                const isSuperAdmin = row.role === "SUPER_ADMIN";
+                                                const isExpanded = selectedUser?.id === row.id;
+                                                const isEditing = isExpanded && selectedUser?.mode === "edit";
 
                                                 return (
                                                     <Fragment key={row.id}>
@@ -351,24 +252,10 @@ export default function AccessControlPage() {
                                                             </td>
                                                             <td>
                                                                 <div className="admin-role-cell">
-                                                                    {isSuperAdmin ? (
-                                                                        <span className="admin-role-lock">
-                                                                            {roleLabels[row.role]}
-                                                                        </span>
-                                                                    ) : (
-                                                                        <select
-                                                                            className="admin-inline-select"
-                                                                            value={row.role}
-                                                                            onChange={(event) =>
-                                                                                updateUserAccess(row.id, "role", event.target.value)
-                                                                            }
-                                                                        >
-                                                                            <option value="LAB_ASSISTANT">Lab Assistant</option>
-                                                                            <option value="VIEWER">Viewer</option>
-                                                                        </select>
-                                                                    )}
-
-                                                                    <span className={`admin-status-pill ${getAccessStatusClass(row.status)}`}>
+                                                                    <span className={isSuperAdmin ? "admin-role-lock" : "admin-role-badge"}>
+                                                                        {roleLabels[row.role]}
+                                                                    </span>
+                                                                    <span className={`admin-status-pill ${getStatusClass(row.status)}`}>
                                                                         {row.status}
                                                                     </span>
                                                                 </div>
@@ -377,23 +264,46 @@ export default function AccessControlPage() {
                                                                 <div className="admin-actions-cell">
                                                                     <button
                                                                         type="button"
-                                                                        className="admin-text-btn"
+                                                                        className="admin-icon-btn"
+                                                                        title="View user"
+                                                                        aria-label="View user"
                                                                         onClick={() =>
-                                                                            setExpandedUserId((current) =>
-                                                                                current === row.id ? null : row.id,
+                                                                            setSelectedUser((current) =>
+                                                                                current?.id === row.id && current.mode === "view"
+                                                                                    ? null
+                                                                                    : { id: row.id, mode: "view" },
                                                                             )
                                                                         }
                                                                     >
-                                                                        {isExpanded ? "Hide" : "View / Edit"}
+                                                                        <Eye size={15} />
                                                                     </button>
 
                                                                     <button
                                                                         type="button"
-                                                                        className="admin-text-btn"
+                                                                        className="admin-icon-btn"
+                                                                        title="Edit user"
+                                                                        aria-label="Edit user"
+                                                                        disabled={isSuperAdmin}
+                                                                        onClick={() =>
+                                                                            setSelectedUser((current) =>
+                                                                                current?.id === row.id && current.mode === "edit"
+                                                                                    ? null
+                                                                                    : { id: row.id, mode: "edit" },
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        <Pencil size={15} />
+                                                                    </button>
+
+                                                                    <button
+                                                                        type="button"
+                                                                        className="admin-icon-btn"
+                                                                        title={row.status === "Suspended" ? "Activate user" : "Suspend user"}
+                                                                        aria-label={row.status === "Suspended" ? "Activate user" : "Suspend user"}
                                                                         disabled={isSuperAdmin}
                                                                         onClick={() => toggleUserSuspension(row.id)}
                                                                     >
-                                                                        {row.status === "suspended" ? "Activate" : "Suspend"}
+                                                                        {row.status === "Suspended" ? <Check size={15} /> : <Pause size={15} />}
                                                                     </button>
                                                                 </div>
                                                             </td>
@@ -402,47 +312,93 @@ export default function AccessControlPage() {
                                                         {isExpanded && (
                                                             <tr className="admin-user-detail-row">
                                                                 <td colSpan={3}>
-                                                                    <div className="admin-user-detail">
-                                                                        <div>
-                                                                            <span>Access Scope</span>
-                                                                            {isSuperAdmin ? (
-                                                                                <strong>{row.accessScope}</strong>
-                                                                            ) : (
-                                                                                <select
-                                                                                    className="admin-inline-select wide"
-                                                                                    value={row.accessScope}
+                                                                    {isEditing ? (
+                                                                        <div className="admin-user-edit-grid">
+                                                                            <label className="admin-field">
+                                                                                Name
+                                                                                <input
+                                                                                    value={row.name}
                                                                                     onChange={(event) =>
-                                                                                        updateUserAccess(row.id, "accessScope", event.target.value)
+                                                                                        updateUser(row.id, "name", event.target.value)
+                                                                                    }
+                                                                                />
+                                                                            </label>
+
+                                                                            <label className="admin-field">
+                                                                                Email
+                                                                                <input
+                                                                                    type="email"
+                                                                                    value={row.email}
+                                                                                    onChange={(event) =>
+                                                                                        updateUser(row.id, "email", event.target.value)
+                                                                                    }
+                                                                                />
+                                                                            </label>
+
+                                                                            <label className="admin-field">
+                                                                                Phone
+                                                                                <input
+                                                                                    value={row.phone}
+                                                                                    onChange={(event) =>
+                                                                                        updateUser(row.id, "phone", event.target.value)
+                                                                                    }
+                                                                                />
+                                                                            </label>
+
+                                                                            <label className="admin-field">
+                                                                                Assign role
+                                                                                <select
+                                                                                    value={row.role}
+                                                                                    onChange={(event) =>
+                                                                                        updateUser(row.id, "role", event.target.value)
                                                                                     }
                                                                                 >
-                                                                                    {scopeOptions.map((scope) => (
-                                                                                        <option key={scope} value={scope}>
-                                                                                            {scope}
+                                                                                    {assignableRoles.map((roleOption) => (
+                                                                                        <option key={roleOption} value={roleOption}>
+                                                                                            {roleLabels[roleOption]}
                                                                                         </option>
                                                                                     ))}
                                                                                 </select>
-                                                                            )}
-                                                                        </div>
+                                                                            </label>
 
-                                                                        <div>
-                                                                            <span>Account Status</span>
-                                                                            {isSuperAdmin ? (
-                                                                                <strong>{row.status}</strong>
-                                                                            ) : (
+                                                                            <label className="admin-field">
+                                                                                Status
                                                                                 <select
-                                                                                    className={`admin-inline-select status ${getAccessStatusClass(row.status)}`}
                                                                                     value={row.status}
                                                                                     onChange={(event) =>
-                                                                                        updateUserAccess(row.id, "status", event.target.value)
+                                                                                        updateUser(row.id, "status", event.target.value)
                                                                                     }
                                                                                 >
-                                                                                    <option value="active">Active</option>
-                                                                                    <option value="limited">Limited</option>
-                                                                                    <option value="suspended">Suspended</option>
+                                                                                    <option>Active</option>
+                                                                                    <option>Pending</option>
+                                                                                    <option>Suspended</option>
                                                                                 </select>
-                                                                            )}
+                                                                            </label>
                                                                         </div>
-                                                                    </div>
+                                                                    ) : (
+                                                                        <div className="admin-user-detail">
+                                                                            <div>
+                                                                                <span>Email</span>
+                                                                                <strong>{row.email}</strong>
+                                                                            </div>
+                                                                            <div>
+                                                                                <span>Phone</span>
+                                                                                <strong>{row.phone}</strong>
+                                                                            </div>
+                                                                            <div>
+                                                                                <span>Role</span>
+                                                                                <strong>{roleLabels[row.role]}</strong>
+                                                                            </div>
+                                                                            <div>
+                                                                                <span>Status</span>
+                                                                                <strong>{row.status}</strong>
+                                                                            </div>
+                                                                            <div>
+                                                                                <span>Last login</span>
+                                                                                <strong>{row.lastLogin}</strong>
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
                                                                 </td>
                                                             </tr>
                                                         )}
@@ -457,13 +413,13 @@ export default function AccessControlPage() {
                             <section className="admin-panel">
                                 <div className="admin-panel-header">
                                     <div>
-                                        <h2>Add Lab User</h2>
-                                        <p>Create a mock user account for the lab workflow.</p>
+                                        <h2>Add User</h2>
+                                        <p>Create a user account structure for later backend integration.</p>
                                     </div>
                                     <UserCog size={20} />
                                 </div>
 
-                                <form className="admin-user-form" onSubmit={addLabUser}>
+                                <form className="admin-user-form" onSubmit={addUser}>
                                     <label className="admin-field">
                                         Name
                                         <input
@@ -494,6 +450,20 @@ export default function AccessControlPage() {
                                     </label>
 
                                     <label className="admin-field">
+                                        Phone
+                                        <input
+                                            value={newUser.phone}
+                                            onChange={(event) =>
+                                                setNewUser((prev) => ({
+                                                    ...prev,
+                                                    phone: event.target.value,
+                                                }))
+                                            }
+                                            placeholder="+60 ..."
+                                        />
+                                    </label>
+
+                                    <label className="admin-field">
                                         Role
                                         <select
                                             value={newUser.role}
@@ -504,32 +474,16 @@ export default function AccessControlPage() {
                                                 }))
                                             }
                                         >
-                                            <option value="LAB_ASSISTANT">Lab Assistant</option>
-                                            <option value="VIEWER">Viewer</option>
-                                        </select>
-                                    </label>
-
-                                    <label className="admin-field">
-                                        Access scope
-                                        <select
-                                            value={newUser.accessScope}
-                                            onChange={(event) =>
-                                                setNewUser((prev) => ({
-                                                    ...prev,
-                                                    accessScope: event.target.value,
-                                                }))
-                                            }
-                                        >
-                                            {scopeOptions.map((scope) => (
-                                                <option key={scope} value={scope}>
-                                                    {scope}
+                                            {assignableRoles.map((roleOption) => (
+                                                <option key={roleOption} value={roleOption}>
+                                                    {roleLabels[roleOption]}
                                                 </option>
                                             ))}
                                         </select>
                                     </label>
 
                                     <button className="admin-primary-btn" type="submit">
-                                        Add Lab User
+                                        Add User
                                     </button>
                                 </form>
                             </section>
@@ -539,8 +493,8 @@ export default function AccessControlPage() {
                             <section className="admin-panel">
                                 <div className="admin-panel-header">
                                     <div>
-                                        <h2>Role Policies</h2>
-                                        <p>Select a role to inspect its current permissions.</p>
+                                        <h2>Role and Permission Management</h2>
+                                        <p>Select a role to inspect what it can access.</p>
                                     </div>
                                     <ShieldCheck size={20} />
                                 </div>
@@ -548,12 +502,12 @@ export default function AccessControlPage() {
                                 <div className="admin-role-tabs">
                                     {rolePolicies.map((policy) => (
                                         <button
-                                            key={policy.id}
+                                            key={policy.role}
                                             type="button"
-                                            className={`admin-role-tab ${selectedRole.id === policy.id ? "active" : ""}`}
+                                            className={`admin-role-tab ${selectedRole.role === policy.role ? "active" : ""}`}
                                             onClick={() => setSelectedRole(policy)}
                                         >
-                                            {roleLabels[policy.role]}
+                                            {policy.label}
                                         </button>
                                     ))}
                                 </div>
@@ -561,10 +515,10 @@ export default function AccessControlPage() {
                                 <div className="admin-role-detail">
                                     <div className="admin-task-top">
                                         <div>
-                                            <h3>{roleLabels[selectedRole.role]}</h3>
+                                            <h3>{selectedRole.label}</h3>
                                             <p>{selectedRole.description}</p>
                                         </div>
-                                        <span className={`admin-status-pill ${getAccessStatusClass(selectedRole.status)}`}>
+                                        <span className={`admin-status-pill ${getStatusClass(selectedRole.status)}`}>
                                             {selectedRole.status}
                                         </span>
                                     </div>
@@ -573,7 +527,7 @@ export default function AccessControlPage() {
                                         {selectedRole.permissions.map((permission) => (
                                             <div key={permission} className="admin-permission-item">
                                                 <span />
-                                                {permission}
+                                                {getPermissionLabel(permission)}
                                             </div>
                                         ))}
                                     </div>
@@ -583,25 +537,40 @@ export default function AccessControlPage() {
                             <section className="admin-panel">
                                 <div className="admin-panel-header">
                                     <div>
-                                        <h2>Route Access Matrix</h2>
-                                        <p>Frontend routing now enforces these access groups.</p>
+                                        <h2>Permission Matrix</h2>
+                                        <p>Frontend-only permission map prepared for backend RBAC later.</p>
                                     </div>
                                     <UserCog size={20} />
                                 </div>
 
-                                <div className="admin-access-matrix single">
-                                    <div>
-                                        <h3>Super Admin</h3>
-                                        <p>/admin/dashboard, /admin/system, /admin/access, /settings</p>
-                                    </div>
-                                    <div>
-                                        <h3>Lab Assistant</h3>
-                                        <p>/lab/dashboard, /lab/telemetry, /lab/forecast, /lab/anomalies, /lab/images, /lab/simulation, /lab/reports, /settings</p>
-                                    </div>
-                                    <div>
-                                        <h3>Viewer</h3>
-                                        <p>Planned read-only route group for future supervisors and evaluators.</p>
-                                    </div>
+                                <div className="admin-perm-table-wrap">
+                                    <table className="admin-perm-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Permission</th>
+                                                {rolePolicies.map((policy) => (
+                                                    <th key={policy.role}>{policy.label}</th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {permissionDefinitions.map((permission) => (
+                                                <tr key={permission.key}>
+                                                    <td className="admin-perm-label" title={permission.description}>
+                                                        {permission.label}
+                                                    </td>
+                                                    {rolePolicies.map((policy) => (
+                                                        <td key={`${permission.key}-${policy.role}`} className="admin-perm-cell">
+                                                            {policy.permissions.includes(permission.key)
+                                                                ? <span className="admin-perm-yes" aria-label="Allowed">✓</span>
+                                                                : <span className="admin-perm-no" aria-label="Denied">–</span>
+                                                            }
+                                                        </td>
+                                                    ))}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
                                 </div>
                             </section>
                         </div>

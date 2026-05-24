@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import "../../styles/auth.css";
 import AuthLayout from "../../components/auth/AuthLayout";
 import WeeklyForecastWidget from "../../components/weather/WeeklyForecastWidget";
+import SessionLoadingOverlay from "../../components/layout/SessionLoadingOverlay";
 import {
   getDashboardPath,
   ROLE_LABELS,
@@ -26,15 +27,18 @@ const loginRoles: Array<{
 export default function LoginPage() {
   const nav = useNavigate();
   const [selectedRole, setSelectedRole] = useState<UserRole>("LAB_ASSISTANT");
+  const [loggingIn, setLoggingIn] = useState(false);
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setLoggingIn(true);
 
-    // Mock auth until the Spring Boot auth endpoint is connected.
-    localStorage.setItem("rc_token", "mock-token");
-    localStorage.setItem("rc_role", selectedRole);
+    window.setTimeout(() => {
+      localStorage.setItem("rc_token", "frontend-session");
+      localStorage.setItem("rc_role", selectedRole);
 
-    nav(getDashboardPath(selectedRole));
+      nav(getDashboardPath(selectedRole));
+    }, 600);
   }
 
   return (
@@ -44,11 +48,11 @@ export default function LoginPage() {
           <div className="auth-brand">Raincatcher</div>
           <h1 className="auth-title">Welcome back</h1>
           <p className="auth-subtitle">
-            Choose a demo role and sign in to the matching workspace.
+            Choose a role and login to the matching workspace.
           </p>
 
           <form className="auth-form" onSubmit={onSubmit}>
-            <div className="auth-role-group" aria-label="Select demo role">
+            <div className="auth-role-group" aria-label="Select role">
               {loginRoles.map((item) => (
                 <button
                   key={item.role}
@@ -99,13 +103,14 @@ export default function LoginPage() {
             </div>
 
             <button className="auth-submit" type="submit">
-              Sign in
+              Login
             </button>
 
             <p className="auth-hint">
-              Mock login: role-based routing is active. Backend auth comes later.
+              Frontend session routing is active. Backend auth connects later.
             </p>
           </form>
+          {loggingIn && <SessionLoadingOverlay message="Logging in..." />}
         </div>
       }
       right={<WeeklyForecastWidget />}

@@ -89,30 +89,40 @@
 /* LIVE FEED */
 .tank-live-frame {
     position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
     border-radius: 18px;
     overflow: hidden;
     margin-bottom: 16px;
     border: 1px solid var(--border);
     background: #0b1220;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
+/* Important: contain shows the full Raspberry Pi camera frame without cropping */
 .tank-live-image {
     width: 100%;
-    height: 320px;
-    object-fit: cover;
+    height: 100%;
+    object-fit: contain;
     display: block;
+    background: #0b1220;
 }
 
+/* Put overlay at the bottom so it does not block/crop the camera timestamp */
 .tank-live-overlay {
     position: absolute;
-    top: 16px;
+    bottom: 16px;
     left: 16px;
+    z-index: 2;
     background: rgba(11, 18, 32, 0.72);
     color: #fff;
     font-size: 14px;
     font-weight: 700;
     padding: 8px 12px;
     border-radius: 12px;
+    backdrop-filter: blur(8px);
 }
 
 .tank-live-meta-grid {
@@ -139,6 +149,7 @@
 .tank-live-meta-item strong {
     font-size: 14px;
     color: var(--text);
+    word-break: break-word;
 }
 
 /* CONTROL PANEL */
@@ -153,6 +164,17 @@
     font-size: 14px;
     font-weight: 600;
     color: var(--text);
+}
+
+.tank-capture-status {
+    margin-top: 16px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: #fafbff;
+    color: var(--muted);
+    padding: 14px;
+    font-size: 13px;
+    line-height: 1.5;
 }
 
 .tank-images-select {
@@ -198,6 +220,7 @@
     margin: 0 0 6px;
     font-size: 16px;
     font-weight: 700;
+    color: var(--text);
 }
 
 .tank-toggle-row p {
@@ -406,7 +429,7 @@
         grid-template-columns: 1fr;
     }
 
-    .tank-live-image {
-        height: 240px;
+    .tank-live-frame {
+        aspect-ratio: 4 / 3;
     }
 }

@@ -1,14 +1,14 @@
-import { weeklyForecastMock } from "../../mock/weeklyForecast.mock";
+import { weatherInputPlaceholder } from "../../services/weatherInputs";
 
 function iconFor(rainMm: number) {
-  if (rainMm >= 15) return "⛈️";
-  if (rainMm >= 5) return "🌧️";
-  if (rainMm > 0) return "🌦️";
-  return "☀️";
+  if (rainMm >= 15) return "Storm";
+  if (rainMm >= 5) return "Rain";
+  if (rainMm > 0) return "Drizzle";
+  return "Dry";
 }
 
 export default function WeeklyForecastWidget() {
-  const data = weeklyForecastMock;
+  const data = weatherInputPlaceholder;
 
   return (
     <div className="wx">
@@ -21,7 +21,7 @@ export default function WeeklyForecastWidget() {
 
           <div className="wx-badge">
             <div className="wx-badge-top">Next 7 days</div>
-            <div className="wx-badge-bottom">Mock data</div>
+            <div className="wx-badge-bottom">API pending</div>
           </div>
         </div>
 
@@ -33,7 +33,7 @@ export default function WeeklyForecastWidget() {
 
           <div className="wx-hero-right">
             <div className="wx-hero-temp">
-              {data.days[0].tempMaxC}° / {data.days[0].tempMinC}°
+              {data.days[0].tempMaxC} deg / {data.days[0].tempMinC} deg
             </div>
             <div className="wx-hero-rain">{data.days[0].rainMm} mm</div>
           </div>
@@ -57,7 +57,7 @@ export default function WeeklyForecastWidget() {
                 <div className="wx-metric">
                   <span className="wx-k">Temp</span>
                   <span className="wx-v">
-                    {d.tempMaxC}° / {d.tempMinC}°
+                    {d.tempMaxC} deg / {d.tempMinC} deg
                   </span>
                 </div>
               </div>
@@ -66,9 +66,10 @@ export default function WeeklyForecastWidget() {
         </div>
 
         <div className="wx-footer">
-          Tip: We can swap mock data to a real API later without changing the layout.
+          Weather slots are ready for the AccuWeather API connection.
         </div>
       </div>
     </div>
   );
 }
+

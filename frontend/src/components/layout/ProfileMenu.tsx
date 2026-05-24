@@ -5,9 +5,11 @@ import {
     getStoredRole,
     ROLE_LABELS,
 } from "../../auth/rbac";
+import SessionLoadingOverlay from "./SessionLoadingOverlay";
 
 export default function ProfileMenu() {
     const [open, setOpen] = useState(false);
+    const [loggingOut, setLoggingOut] = useState(false);
     const navigate = useNavigate();
     const role = getStoredRole();
     const roleLabel = role ? ROLE_LABELS[role] : "Guest";
@@ -34,7 +36,7 @@ export default function ProfileMenu() {
                 <div className="profile-dropdown">
                     <div className="profile-dropdown-meta">
                         <strong>{roleLabel}</strong>
-                        <span>Mock session</span>
+                        <span>Frontend session</span>
                     </div>
 
                     <button
@@ -53,14 +55,19 @@ export default function ProfileMenu() {
                         type="button"
                         onClick={() => {
                             setOpen(false);
-                            clearSession();
-                            navigate("/login", { replace: true });
+                            setLoggingOut(true);
+                            window.setTimeout(() => {
+                                clearSession();
+                                navigate("/login", { replace: true });
+                            }, 600);
                         }}
                     >
                         Logout
                     </button>
                 </div>
             )}
+
+            {loggingOut && <SessionLoadingOverlay message="Logging out..." />}
         </div>
     );
 }

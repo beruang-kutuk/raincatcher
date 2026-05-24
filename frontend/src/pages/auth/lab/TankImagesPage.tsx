@@ -2,55 +2,30 @@ import { useState } from "react";
 import "../../../styles/dashboard.css";
 import "../../../styles/tank-images.css";
 import Sidebar from "../../../components/layout/Sidebar";
-import tankImage from "../../../assets/images/msu-camera.jpeg";
 import ProfileMenu from "../../../components/layout/ProfileMenu";
 import RpiCameraFeed from "../../../components/lab/RpiCameraFeed";
-
-const TANK_LABEL = "Rainwater Tank";
+import { RAINWATER_TANK_NAME } from "../../../services/sensorInputs";
+import { formatCurrentDate, formatCurrentDateTime } from "../../../services/time";
 
 type CaptureItem = {
     id: number;
-    image: string;
+    imageUrl: string;
     timestamp: string;
-    tank: string;
+    tank: typeof RAINWATER_TANK_NAME;
 };
 
-const capturedImages: CaptureItem[] = [
-    {
-        id: 1,
-        image: tankImage,
-        timestamp: "Captured image history coming soon",
-        tank: TANK_LABEL,
-    },
-    {
-        id: 2,
-        image: tankImage,
-        timestamp: "Captured image history coming soon",
-        tank: TANK_LABEL,
-    },
-    {
-        id: 3,
-        image: tankImage,
-        timestamp: "Captured image history coming soon",
-        tank: TANK_LABEL,
-    },
-    {
-        id: 4,
-        image: tankImage,
-        timestamp: "Captured image history coming soon",
-        tank: TANK_LABEL,
-    },
-    {
-        id: 5,
-        image: tankImage,
-        timestamp: "Captured image history coming soon",
-        tank: TANK_LABEL,
-    },
-];
+const capturedImages: CaptureItem[] = [];
 
 export default function TankImagesPage() {
     const [sidebarOpen, setSidebarOpen] = useState(true);
-    const [autoCapture, setAutoCapture] = useState(true);
+    const [autoCapture, setAutoCapture] = useState(false);
+    const [captureStatus, setCaptureStatus] = useState(
+        "Capture endpoint not connected. Raspberry Pi images will appear after capture is enabled.",
+    );
+
+    function handleCaptureRequest() {
+        setCaptureStatus(`Capture request prepared at ${formatCurrentDateTime()}. Backend camera capture endpoint is pending.`);
+    }
 
     return (
         <div className={`app-shell-fixed ${sidebarOpen ? "sidebar-expanded" : "sidebar-collapsed"}`}>
@@ -69,11 +44,11 @@ export default function TankImagesPage() {
 
                             <div className="tank-images-topbar-right">
                                 <button className="tank-images-filter-btn" type="button">
-                                    21 Apr 2026
+                                    {formatCurrentDate()}
                                 </button>
 
                                 <button className="tank-images-filter-btn" type="button">
-                                    {TANK_LABEL}
+                                    {RAINWATER_TANK_NAME}
                                 </button>
 
                                 <div className="dashboard-actions">
@@ -92,17 +67,21 @@ export default function TankImagesPage() {
                                 <RpiCameraFeed
                                     frameClassName="tank-live-frame"
                                     imageClassName="tank-live-image"
-                                    overlayLabel={TANK_LABEL}
+                                    overlayLabel={RAINWATER_TANK_NAME}
                                 />
                             </section>
 
                             <section className="tank-images-panel tank-control-panel">
                                 <div className="tank-panel-header">
                                     <h2>Capture Control</h2>
-                                    <p>Manually capture a new image from the live feed.</p>
+                                    <p>Manual capture is prepared for the Raspberry Pi camera endpoint.</p>
                                 </div>
 
-                                <button className="tank-capture-btn" type="button">
+                                <button
+                                    className="tank-capture-btn"
+                                    type="button"
+                                    onClick={handleCaptureRequest}
+                                >
                                     Capture Image
                                 </button>
 
@@ -111,7 +90,7 @@ export default function TankImagesPage() {
                                 <div className="tank-toggle-row">
                                     <div>
                                         <h3>Auto Capture</h3>
-                                        <p>Capture images automatically at a set interval.</p>
+                                        <p>Store images automatically after backend capture is enabled.</p>
                                     </div>
 
                                     <button
@@ -133,6 +112,10 @@ export default function TankImagesPage() {
                                         <option>2 hours</option>
                                     </select>
                                 </div>
+
+                                <div className="tank-capture-status">
+                                    {captureStatus}
+                                </div>
                             </section>
                         </div>
 
@@ -140,7 +123,7 @@ export default function TankImagesPage() {
                             <div className="tank-panel-header tank-gallery-header">
                                 <div>
                                     <h2>Captured Images</h2>
-                                    <p>Captured image history coming soon.</p>
+                                    <p>Images will be listed after Raspberry Pi capture storage is connected.</p>
                                 </div>
 
                                 <div className="tank-gallery-tools">
@@ -155,28 +138,34 @@ export default function TankImagesPage() {
                                 </div>
                             </div>
 
-                            <div className="tank-gallery-grid">
-                                {capturedImages.map((item) => (
-                                    <article key={item.id} className="tank-gallery-card">
-                                        <img
-                                            src={item.image}
-                                            alt={item.timestamp}
-                                            className="tank-gallery-image"
-                                        />
+                            {capturedImages.length === 0 ? (
+                                <div className="empty-state">
+                                    <strong>No captured images yet.</strong>
+                                    <span>
+                                        Images will appear here after camera capture is enabled.
+                                    </span>
+                                </div>
+                            ) : (
+                                <div className="tank-gallery-grid">
+                                    {capturedImages.map((item) => (
+                                        <article key={item.id} className="tank-gallery-card">
+                                            <img
+                                                src={item.imageUrl}
+                                                alt={`${item.tank} capture at ${item.timestamp}`}
+                                                className="tank-gallery-image"
+                                            />
 
-                                        <div className="tank-gallery-card-body">
-                                            <p className="tank-gallery-timestamp">{item.timestamp}</p>
+                                            <div className="tank-gallery-card-body">
+                                                <p className="tank-gallery-timestamp">{item.timestamp}</p>
 
-                                            <div className="tank-gallery-footer">
-                                                <span className="tank-gallery-tag">{item.tank}</span>
-                                                <button type="button" className="tank-gallery-more">
-                                                    •••
-                                                </button>
+                                                <div className="tank-gallery-footer">
+                                                    <span className="tank-gallery-tag">{item.tank}</span>
+                                                </div>
                                             </div>
-                                        </div>
-                                    </article>
-                                ))}
-                            </div>
+                                        </article>
+                                    ))}
+                                </div>
+                            )}
                         </section>
                     </div>
                 </main>
@@ -184,3 +173,4 @@ export default function TankImagesPage() {
         </div>
     );
 }
+
