@@ -196,9 +196,12 @@ export default function ReportsPage() {
         doc.setFontSize(10);
         doc.text(`Tank: ${RAINWATER_TANK_NAME}`, marginX, 62);
         doc.text(`Date range: ${dateRange}`, marginX, 70);
-        doc.text("Real report metrics will be populated after telemetry, camera, forecast, and anomaly services are connected.", marginX, 84, {
-            maxWidth: pageWidth - marginX * 2,
-        });
+        doc.text(
+            "Real report metrics will be populated after telemetry, camera, forecast, and anomaly services are connected.",
+            marginX,
+            84,
+            { maxWidth: pageWidth - marginX * 2 },
+        );
 
         doc.save(`${reportType.toLowerCase().replaceAll(" ", "-")}.pdf`);
     }
@@ -311,9 +314,11 @@ export default function ReportsPage() {
                                     </div>
 
                                     {generatedReportRows.length === 0 ? (
-                                        <div className="empty-state compact">
+                                        <div className="empty-state">
                                             <strong>No generated reports yet</strong>
-                                            <span>Reports will appear after backend generation is connected.</span>
+                                            <span>
+                                                Generated reports will appear after backend report generation is connected.
+                                            </span>
                                         </div>
                                     ) : (
                                         <>
@@ -373,6 +378,114 @@ export default function ReportsPage() {
                                             </div>
                                         </>
                                     )}
+                                </section>
+
+                                <section className="reports-panel">
+                                    <div className="reports-panel-header">
+                                        <h2><Calendar size={16} className="reports-panel-icon" /> Report Schedule</h2>
+                                    </div>
+
+                                    <div className="reports-schedule-grid">
+                                        <div className="reports-schedule-row">
+                                            <div>
+                                                <strong>Daily auto-report</strong>
+                                                <span>Generate a summary report each day automatically.</span>
+                                            </div>
+
+                                            <button
+                                                type="button"
+                                                className={`reports-toggle ${dailyAutoReport ? "active" : ""}`}
+                                                onClick={() => setDailyAutoReport((prev) => !prev)}
+                                                aria-pressed={dailyAutoReport}
+                                            >
+                                                <i />
+                                            </button>
+                                        </div>
+
+                                        <label className="reports-schedule-field">
+                                            Weekly report day
+                                            <select
+                                                className="reports-select"
+                                                value={weeklyDay}
+                                                onChange={(e) => setWeeklyDay(e.target.value)}
+                                            >
+                                                {weekDays.map((day) => (
+                                                    <option key={day}>{day}</option>
+                                                ))}
+                                            </select>
+                                        </label>
+
+                                        <label className="reports-schedule-field">
+                                            Monthly report date
+                                            <select
+                                                className="reports-select"
+                                                value={monthlyDate}
+                                                onChange={(e) => setMonthlyDate(e.target.value)}
+                                            >
+                                                {monthDates.map((day) => (
+                                                    <option key={day}>{day}</option>
+                                                ))}
+                                            </select>
+                                        </label>
+
+                                        <div className="reports-schedule-next">
+                                            <Clock size={14} />
+                                            <span>Next scheduled report: <strong>Pending backend scheduler</strong></span>
+                                        </div>
+                                    </div>
+
+                                    <div className="reports-generate-actions reports-single-action">
+                                        <button
+                                            type="button"
+                                            className="reports-generate-btn"
+                                            onClick={handleSaveSchedule}
+                                        >
+                                            {scheduleSaved ? <CheckCircle2 size={15} /> : <Calendar size={15} />}
+                                            <span>{scheduleSaved ? "Saved" : "Save Schedule"}</span>
+                                        </button>
+                                    </div>
+                                </section>
+
+                                <section className="reports-panel">
+                                    <div className="reports-panel-header">
+                                        <h2><Inbox size={16} className="reports-panel-icon" /> Export Center</h2>
+                                    </div>
+
+                                    {generatedReportRows.length === 0 ? (
+                                        <div className="empty-state compact">
+                                            <strong>No exports available yet</strong>
+                                            <span>Generated report files will appear here once backend report generation is connected.</span>
+                                        </div>
+                                    ) : (
+                                        <div className="reports-export-list">
+                                            <button type="button" className="reports-export-item">
+                                                <FileText size={16} />
+                                                <span>Download latest PDF</span>
+                                                <Download size={14} className="reports-export-arrow" />
+                                            </button>
+
+                                            <button type="button" className="reports-export-item">
+                                                <FileText size={16} />
+                                                <span>Download latest CSV</span>
+                                                <Download size={14} className="reports-export-arrow" />
+                                            </button>
+
+                                            <button type="button" className="reports-export-item">
+                                                <Download size={16} />
+                                                <span>Download all reports</span>
+                                                <Download size={14} className="reports-export-arrow" />
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    <div className="reports-generate-actions reports-single-action">
+                                        <button type="button" className="reports-preview-btn" disabled>
+                                            <Mail size={15} />
+                                            <span>Send to Email</span>
+                                        </button>
+                                    </div>
+
+                                    <small className="reports-export-note">Email delivery pending backend integration.</small>
                                 </section>
                             </div>
 
@@ -501,7 +614,9 @@ export default function ReportsPage() {
                                                     ? <CheckCircle2 size={16} className="reports-readiness-ok" />
                                                     : <AlertCircle size={16} className="reports-readiness-warn" />
                                                 }
+
                                                 <span>{item.label}</span>
+
                                                 <span className={`reports-readiness-pill ${item.status === "ready" ? "ready" : "pending"}`}>
                                                     {item.status}
                                                 </span>
@@ -524,6 +639,7 @@ export default function ReportsPage() {
                                             <RefreshCw size={15} />
                                             <span>Check Readiness</span>
                                         </button>
+
                                         <button
                                             type="button"
                                             className="reports-secondary-btn"
@@ -533,109 +649,9 @@ export default function ReportsPage() {
                                         </button>
                                     </div>
                                 </section>
+
+
                             </div>
-                        </div>
-
-                        <div className="reports-bottom-grid">
-                            <section className="reports-panel">
-                                <div className="reports-panel-header">
-                                    <h2><Calendar size={16} className="reports-panel-icon" /> Report Schedule</h2>
-                                </div>
-
-                                <div className="reports-schedule-grid">
-                                    <div className="reports-schedule-row">
-                                        <div>
-                                            <strong>Daily auto-report</strong>
-                                            <span>Generate a summary report each day automatically.</span>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            className={`reports-toggle ${dailyAutoReport ? "active" : ""}`}
-                                            onClick={() => setDailyAutoReport((prev) => !prev)}
-                                            aria-pressed={dailyAutoReport}
-                                        >
-                                            <i />
-                                        </button>
-                                    </div>
-
-                                    <label className="reports-schedule-field">
-                                        Weekly report day
-                                        <select
-                                            className="reports-select"
-                                            value={weeklyDay}
-                                            onChange={(e) => setWeeklyDay(e.target.value)}
-                                        >
-                                            {weekDays.map((d) => <option key={d}>{d}</option>)}
-                                        </select>
-                                    </label>
-
-                                    <label className="reports-schedule-field">
-                                        Monthly report date
-                                        <select
-                                            className="reports-select"
-                                            value={monthlyDate}
-                                            onChange={(e) => setMonthlyDate(e.target.value)}
-                                        >
-                                            {monthDates.map((d) => <option key={d}>{d}</option>)}
-                                        </select>
-                                    </label>
-
-                                    <div className="reports-schedule-next">
-                                        <Clock size={14} />
-                                        <span>Next scheduled report: <strong>Pending backend scheduler</strong></span>
-                                    </div>
-                                </div>
-
-                                <div className="reports-generate-actions">
-                                    <button
-                                        type="button"
-                                        className="reports-generate-btn"
-                                        onClick={handleSaveSchedule}
-                                    >
-                                        {scheduleSaved ? <CheckCircle2 size={15} /> : <Calendar size={15} />}
-                                        <span>{scheduleSaved ? "Saved" : "Save Schedule"}</span>
-                                    </button>
-                                </div>
-                            </section>
-
-                            <section className="reports-panel">
-                                <div className="reports-panel-header">
-                                    <h2><Inbox size={16} className="reports-panel-icon" /> Export Center</h2>
-                                </div>
-
-                                {generatedReportRows.length === 0 ? (
-                                    <div className="empty-state compact">
-                                        <strong>No exports available yet</strong>
-                                        <span>Generated report files will appear here once backend report generation is connected.</span>
-                                    </div>
-                                ) : (
-                                    <div className="reports-export-list">
-                                        <button type="button" className="reports-export-item">
-                                            <FileText size={16} />
-                                            <span>Download latest PDF</span>
-                                            <Download size={14} className="reports-export-arrow" />
-                                        </button>
-                                        <button type="button" className="reports-export-item">
-                                            <FileText size={16} />
-                                            <span>Download latest CSV</span>
-                                            <Download size={14} className="reports-export-arrow" />
-                                        </button>
-                                        <button type="button" className="reports-export-item">
-                                            <Download size={16} />
-                                            <span>Download all reports</span>
-                                            <Download size={14} className="reports-export-arrow" />
-                                        </button>
-                                    </div>
-                                )}
-
-                                <div className="reports-generate-actions">
-                                    <button type="button" className="reports-preview-btn" disabled>
-                                        <Mail size={15} />
-                                        <span>Send to Email</span>
-                                    </button>
-                                </div>
-                                <small className="reports-export-note">Email delivery pending backend integration.</small>
-                            </section>
                         </div>
                     </div>
                 </main>
@@ -649,6 +665,7 @@ export default function ReportsPage() {
                                 <h2>Missing Inputs</h2>
                                 <p>These inputs are required before generating a reliable report.</p>
                             </div>
+
                             <button
                                 type="button"
                                 className="reports-preview-close"
@@ -657,6 +674,7 @@ export default function ReportsPage() {
                                 <X size={18} />
                             </button>
                         </div>
+
                         <div className="reports-readiness-list">
                             {missingInputs.length === 0 ? (
                                 <div className="empty-state compact">
@@ -673,6 +691,7 @@ export default function ReportsPage() {
                                 ))
                             )}
                         </div>
+
                         <div className="reports-preview-actions">
                             <button
                                 type="button"
@@ -713,19 +732,23 @@ export default function ReportsPage() {
 
                             <div className="reports-pdf-section">
                                 <h3>Input Status</h3>
+
                                 <div className="reports-pdf-metrics">
                                     <div>
                                         <span>Generated</span>
                                         <strong>{pendingReport.generatedOn}</strong>
                                     </div>
+
                                     <div>
                                         <span>Storage</span>
                                         <strong>--</strong>
                                     </div>
+
                                     <div>
                                         <span>Water Quality</span>
                                         <strong>--</strong>
                                     </div>
+
                                     <div>
                                         <span>Anomalies</span>
                                         <strong>0</strong>
@@ -735,6 +758,7 @@ export default function ReportsPage() {
 
                             <div className="reports-pdf-section">
                                 <h3>Included Sections</h3>
+
                                 <div className="reports-pdf-tags">
                                     {selectedSections.map((section) => (
                                         <span key={section}>{section}</span>

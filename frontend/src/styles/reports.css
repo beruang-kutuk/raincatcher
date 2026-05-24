@@ -31,17 +31,17 @@
 .reports-filter-btn {
     background: #fff;
     border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 9px 14px;
-    font-size: 13px;
+    border-radius: 14px;
+    padding: 12px 16px;
+    font-size: 14px;
     font-weight: 600;
     color: var(--text);
     cursor: pointer;
 }
 
 .reports-filter-btn.small {
-    padding: 7px 12px;
-    font-size: 12px;
+    padding: 10px 14px;
+    font-size: 13px;
 }
 
 /* SUMMARY */
@@ -913,12 +913,6 @@ body.dark-mode .reports-quick-item:hover {
     background: rgba(139, 92, 246, 0.08);
 }
 
-body.dark-mode .reports-filter-btn {
-    background: var(--input);
-    color: var(--text);
-    border-color: var(--border);
-}
-
 body.dark-mode .reports-page-btn,
 body.dark-mode .reports-preview-close {
     background: var(--input);
@@ -1252,4 +1246,8 @@ body.dark-mode .reports-secondary-btn {
 
 .reports-panel .empty-state span {
     font-size: 13px;
+}
+
+.reports-single-action {
+    grid-template-columns: 1fr;
 }
