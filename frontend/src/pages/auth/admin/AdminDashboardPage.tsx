@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
     Activity,
     AlertTriangle,
@@ -15,14 +15,14 @@ import Sidebar from "../../../components/layout/Sidebar";
 import AdminTopbar from "../../../components/layout/AdminTopbar";
 import {
     adminPriorities,
-    systemEngines,
     type AdminStatus,
 } from "../../../services/adminData";
 import {
     RAINWATER_TANK_NAME,
-    sensorInputDefinitions,
 } from "../../../services/sensorInputs";
 import { formatCurrentDateTime } from "../../../services/time";
+import { getAdminDevices, type AdminDevice } from "../../../services/adminDeviceApi";
+import { getAdminSystemHealth, type AdminSystemHealthSummary } from "../../../services/adminSystemHealthApi";
 
 type AdminMetric = {
     label: string;
@@ -32,9 +32,11 @@ type AdminMetric = {
     icon: React.ReactNode;
 };
 
-function getAdminStatusClass(status: AdminStatus) {
+function getAdminStatusClass(status: AdminStatus | string) {
     if (status === "critical") return "admin-status-critical";
     if (status === "warning") return "admin-status-warning";
+    if (status === "not_implemented" || status === "no_data" || status === "offline") return "admin-status-critical";
+    if (status === "pending" || status === "stale" || status === "no_records") return "admin-status-warning";
     return "admin-status-normal";
 }
 
@@ -59,35 +61,54 @@ function AdminMetricCard({ label, value, meta, status, icon }: AdminMetric) {
 
 export default function AdminDashboardPage() {
     const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [devices, setDevices] = useState<AdminDevice[]>([]);
+    const [health, setHealth] = useState<AdminSystemHealthSummary | null>(null);
+    const [dashboardError, setDashboardError] = useState("");
 
-    const pendingSensors = sensorInputDefinitions.filter((sensor) => sensor.status !== "online").length;
+    useEffect(() => {
+        let active = true;
+        Promise.all([getAdminDevices(), getAdminSystemHealth()])
+            .then(([deviceRows, healthSummary]) => {
+                if (!active) return;
+                setDevices(deviceRows);
+                setHealth(healthSummary);
+                setDashboardError("");
+            })
+            .catch(() => {
+                if (active) setDashboardError("Admin backend APIs are unavailable.");
+            });
+        return () => { active = false; };
+    }, []);
+
+    const onlineDevices = devices.filter((device) => device.status === "Online").length;
+    const warningDevices = devices.filter((device) => device.status === "Warning" || device.status === "Pending").length;
     const adminMetrics: AdminMetric[] = [
         {
-            label: "Sensor Inputs Ready",
-            value: `0 / ${sensorInputDefinitions.length}`,
-            meta: `${pendingSensors} sensor inputs awaiting ESP32 telemetry`,
-            status: "warning",
+            label: "Online Devices",
+            value: `${onlineDevices} / ${devices.length || "--"}`,
+            meta: `${warningDevices} devices need review or are pending telemetry`,
+            status: onlineDevices > 0 ? "normal" : "warning",
             icon: <Activity size={22} />,
         },
         {
-            label: "Threshold Profiles",
-            value: "Prepared",
-            meta: "Water level, pH, turbidity, temperature, and timeout rules",
-            status: "normal",
+            label: "Backend API",
+            value: health?.backendApi ?? "Checking",
+            meta: "Spring Boot backend admin endpoint status",
+            status: health?.backendApi === "online" ? "normal" : "warning",
             icon: <SlidersHorizontal size={22} />,
         },
         {
-            label: "Forecast Modules",
-            value: "8",
-            meta: "Benchmark, harvest, risk, storage, scenario, and AI modules",
-            status: "normal",
+            label: "Forecast API",
+            value: String(health?.forecastApi ?? "Checking"),
+            meta: "Forecast runs and calibration-ready storage output",
+            status: health?.forecastApi === "has_completed_runs" ? "normal" : "warning",
             icon: <Gauge size={22} />,
         },
         {
-            label: "Open Admin Priorities",
-            value: String(adminPriorities.length),
-            meta: "System setup actions before live deployment",
-            status: "warning",
+            label: "ESP32 Telemetry",
+            value: String(health?.esp32Telemetry ?? "Checking"),
+            meta: health?.sensorLastSeenAt ? `Last seen ${health.sensorLastSeenAt}` : "Waiting for latest telemetry",
+            status: health?.esp32Telemetry === "online" ? "normal" : "warning",
             icon: <AlertTriangle size={22} />,
         },
     ];
@@ -113,6 +134,8 @@ export default function AdminDashboardPage() {
                             }
                         />
 
+                        {dashboardError && <div className="admin-inline-alert">{dashboardError}</div>}
+
                         <div className="admin-summary-grid">
                             {adminMetrics.map((item) => (
                                 <AdminMetricCard key={item.label} {...item} />
@@ -123,8 +146,8 @@ export default function AdminDashboardPage() {
                             <section className="admin-panel">
                                 <div className="admin-panel-header">
                                     <div>
-                                        <h2>Sensor Input Health</h2>
-                                        <p>Current readiness for the Rainwater Tank sensor package.</p>
+                                        <h2>Device Health</h2>
+                                        <p>Current database-backed device and service registry.</p>
                                     </div>
                                     <ShieldCheck size={20} />
                                 </div>
@@ -141,14 +164,14 @@ export default function AdminDashboardPage() {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {sensorInputDefinitions.map((row) => (
-                                                <tr key={row.tag}>
-                                                    <td>{row.label}</td>
-                                                    <td>{row.tag}</td>
-                                                    <td>{row.source}</td>
-                                                    <td>{row.value ?? "--"} {row.value === null ? "" : row.unit}</td>
+                                            {devices.map((row) => (
+                                                <tr key={row.id}>
+                                                    <td>{row.name}</td>
+                                                    <td>{row.inputTag ?? "--"}</td>
+                                                    <td>{row.category}</td>
+                                                    <td>{row.lastData}</td>
                                                     <td>
-                                                        <span className={`admin-status-pill ${getAdminStatusClass(row.status === "online" ? "normal" : "warning")}`}>
+                                                        <span className={`admin-status-pill ${getAdminStatusClass(row.status === "Online" ? "normal" : "warning")}`}>
                                                             {row.status}
                                                         </span>
                                                     </td>
@@ -163,7 +186,7 @@ export default function AdminDashboardPage() {
                                 <div className="admin-panel-header">
                                     <div>
                                         <h2>Admin Priorities</h2>
-                                        <p>Structured actions the system can learn from later.</p>
+                                    <p>Open setup tasks while hardware services are being completed.</p>
                                     </div>
                                     <FileText size={20} />
                                 </div>
@@ -198,18 +221,17 @@ export default function AdminDashboardPage() {
                             </div>
 
                             <div className="admin-grid admin-grid-three">
-                                {systemEngines.map((engine) => (
-                                    <article key={engine.id} className="admin-mini-panel admin-engine-card">
+                                {(health?.services ?? []).map((engine) => (
+                                    <article key={engine.serviceKey} className="admin-mini-panel admin-engine-card">
                                         <div className="admin-engine-top">
-                                            <h2>{engine.name}</h2>
-                                            {engine.name.includes("Camera") ? <Camera size={18} /> : <Activity size={18} />}
+                                            <h2>{engine.serviceName}</h2>
+                                            {engine.serviceKey.includes("camera") ? <Camera size={18} /> : <Activity size={18} />}
                                         </div>
                                         <span className={`admin-status-pill ${getAdminStatusClass(engine.status)}`}>
-                                            {engine.health}
+                                            {engine.status}
                                         </span>
-                                        <p><strong>Last run:</strong> {engine.lastRun}</p>
-                                        <p><strong>Input:</strong> {engine.inputSource}</p>
-                                        <p><strong>Next:</strong> {engine.nextAction}</p>
+                                        <p>{engine.detail}</p>
+                                        <p><strong>Checked:</strong> {engine.checkedAt}</p>
                                     </article>
                                 ))}
                             </div>
@@ -220,4 +242,3 @@ export default function AdminDashboardPage() {
         </div>
     );
 }
-

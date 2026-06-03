@@ -1,18 +1,38 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { RPI_CAMERA_SOURCE, RPI_CAMERA_STREAM_URL } from "../../config/camera";
 
 type RpiCameraFeedProps = {
     frameClassName: string;
     imageClassName: string;
     overlayLabel?: string;
+    sourceLabel?: string;
+    srcUrl?: string;
+    refreshMs?: number;
 };
 
 export default function RpiCameraFeed({
     frameClassName,
     imageClassName,
     overlayLabel,
+    sourceLabel = RPI_CAMERA_SOURCE,
+    srcUrl = RPI_CAMERA_STREAM_URL,
+    refreshMs,
 }: RpiCameraFeedProps) {
     const [isStreamAvailable, setIsStreamAvailable] = useState(true);
+    const [refreshToken, setRefreshToken] = useState(() => Date.now());
+    const imageSrc = refreshMs
+        ? `${srcUrl}${srcUrl.includes("?") ? "&" : "?"}t=${refreshToken}`
+        : srcUrl;
+
+    useEffect(() => {
+        if (!refreshMs) return undefined;
+
+        const intervalId = globalThis.setInterval(() => {
+            setRefreshToken(Date.now());
+        }, refreshMs);
+
+        return () => globalThis.clearInterval(intervalId);
+    }, [refreshMs, srcUrl]);
 
     return (
         <>
@@ -20,7 +40,7 @@ export default function RpiCameraFeed({
                 className={`${frameClassName} camera-feed-frame ${isStreamAvailable ? "" : "camera-feed-frame-unavailable"}`}
             >
                 <img
-                    src={RPI_CAMERA_STREAM_URL}
+                    src={imageSrc}
                     alt="Live Raspberry Pi USB webcam feed"
                     className={`${imageClassName} ${isStreamAvailable ? "" : "camera-feed-image-hidden"}`}
                     onLoad={() => setIsStreamAvailable(true)}
@@ -29,7 +49,7 @@ export default function RpiCameraFeed({
 
                 {!isStreamAvailable && (
                     <div className="camera-feed-fallback" role="status">
-                        Camera feed unavailable. Check Raspberry Pi connection.
+                        Live camera feed unavailable. Make sure Raspberry Pi camera backend is running.
                     </div>
                 )}
 
@@ -50,12 +70,12 @@ export default function RpiCameraFeed({
 
                 <div className="camera-status-item">
                     <span className="camera-status-label">Source</span>
-                    <strong>{RPI_CAMERA_SOURCE}</strong>
+                    <strong>{sourceLabel}</strong>
                 </div>
 
                 <div className="camera-status-item camera-status-url">
                     <span className="camera-status-label">Stream URL</span>
-                    <strong title={RPI_CAMERA_STREAM_URL}>{RPI_CAMERA_STREAM_URL}</strong>
+                    <strong title={srcUrl}>{srcUrl}</strong>
                 </div>
             </div>
         </>

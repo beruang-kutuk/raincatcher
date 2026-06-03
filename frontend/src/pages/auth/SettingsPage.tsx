@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import "../../styles/dashboard.css";
 import "../../styles/settings.css";
@@ -21,6 +21,12 @@ import {
     getPolicyByManagedRole,
     profileByUserRole,
 } from "../../services/adminData";
+import { saveFrontendPlaceholder } from "../../services/frontendPersistence";
+import {
+    getUserProfile,
+    updateUserProfile,
+    uploadUserProfilePicture,
+} from "../../services/userProfileApi";
 import { RPI_CAMERA_STREAM_URL } from "../../config/camera";
 
 type SettingsTab =
@@ -34,6 +40,8 @@ type SettingsTab =
     | "forecast"
     | "anomalies"
     | "adminSystem";
+
+type SettingsSaveAction = "settings" | "profile";
 
 type ToggleProps = {
     label: string;
@@ -149,22 +157,26 @@ export default function SettingsPage() {
     const [activeTab, setActiveTab] = useState<SettingsTab>("profile");
     const [theme, setTheme] = useState<ThemePreference>(() => getStoredThemePreference());
     const [saveMessage, setSaveMessage] = useState("");
+    const [savingAction, setSavingAction] = useState<SettingsSaveAction | null>(null);
+    const [completedAction, setCompletedAction] = useState<SettingsSaveAction | null>(null);
     const [loggingOut, setLoggingOut] = useState(false);
     const role = getStoredRole() ?? "LAB_ASSISTANT";
-    const isAdmin = role === "SYSTEM_ADMIN";
-    const profile = profileByUserRole[role];
-    const assignedPolicy = getPolicyByManagedRole(profile.rolePolicy);
+    const isAdmin = role === "SUPER_ADMIN";
+    const fallbackProfile = profileByUserRole[role];
+    const [profileEmail, setProfileEmail] = useState("");
+    const assignedPolicy = getPolicyByManagedRole(role);
     const assignedPermissions = assignedPolicy.permissions.map(getPermissionLabel);
     const visibleTabs = isAdmin
         ? [...baseTabs, { id: "adminSystem" as SettingsTab, label: "Admin/System" }]
         : baseTabs;
 
     const [profileForm, setProfileForm] = useState({
-        displayName: profile.name,
-        phone: profile.phone,
+        displayName: localStorage.getItem("rc_display_name") || fallbackProfile.name,
+        phone: fallbackProfile.phone,
         password: "",
     });
     const [profilePhotoName, setProfilePhotoName] = useState("No photo selected");
+    const [profileAvatarUrl, setProfileAvatarUrl] = useState(() => localStorage.getItem("rc_avatar_url") ?? "");
     const [appearance, setAppearance] = useState({
         sidebarPreference: "Expanded",
     });
@@ -220,6 +232,31 @@ export default function SettingsPage() {
         acknowledge: true,
     });
 
+    useEffect(() => {
+        let active = true;
+        getUserProfile()
+            .then((user) => {
+                if (!active) return;
+                const displayName = user.displayName || user.username || user.email?.split("@")[0] || fallbackProfile.name;
+                const avatarUrl = user.profileImageData || user.profileImageUrl || user.avatarUrl || "";
+                setProfileForm((prev) => ({
+                    ...prev,
+                    displayName,
+                    phone: user.phone || "",
+                }));
+                setProfileEmail(user.email || "");
+                if (avatarUrl) {
+                    setProfileAvatarUrl(avatarUrl);
+                    localStorage.setItem("rc_avatar_url", avatarUrl);
+                }
+                localStorage.setItem("rc_display_name", displayName);
+            })
+            .catch(() => {
+                setSaveMessage("Profile could not be loaded from backend.");
+            });
+        return () => { active = false; };
+    }, [fallbackProfile.name]);
+
     function handleThemeChange(value: ThemePreference) {
         setTheme(value);
         saveThemePreference(value);
@@ -234,13 +271,71 @@ export default function SettingsPage() {
         }, 600);
     }
 
-    function handleProfileSave(event: FormEvent) {
-        event.preventDefault();
-        setSaveMessage("Settings saved. Backend persistence endpoint is ready to connect later.");
+    async function runSettingsSave(
+        action: SettingsSaveAction,
+        label: string,
+        payload: unknown,
+    ) {
+        setSavingAction(action);
+        setSaveMessage("");
+
+        try {
+            await saveFrontendPlaceholder(label, payload);
+            setSaveMessage("Saved successfully. Settings are stored in frontend state and ready for backend persistence.");
+            setCompletedAction(action);
+            globalThis.setTimeout(() => {
+                setCompletedAction((current) => (current === action ? null : current));
+            }, 1800);
+        } catch {
+            setSaveMessage("Settings could not be saved. Backend placeholder action is ready to retry.");
+        } finally {
+            setSavingAction(null);
+        }
     }
 
     function handlePreferenceSave() {
-        setSaveMessage("Settings saved. Backend persistence endpoint is ready to connect later.");
+        void runSettingsSave("settings", "User settings", {
+            theme,
+            appearance,
+            dashboardPrefs,
+            notificationPrefs,
+            cameraPrefs,
+            reportPrefs,
+            displayPrefs,
+            forecastPrefs,
+            anomalyPrefs,
+        });
+    }
+
+    function handleProfileSave(event: FormEvent) {
+        event.preventDefault();
+        const token = localStorage.getItem("rc_token") ?? "";
+        if (!token) {
+            void runSettingsSave("profile", "User profile", { ...profileForm });
+            return;
+        }
+        setSavingAction("profile");
+        setSaveMessage("");
+        updateUserProfile({
+            displayName: profileForm.displayName,
+            phone: profileForm.phone,
+            password: profileForm.password || undefined,
+        })
+            .then((updated) => {
+                setSaveMessage("Profile saved successfully.");
+                setCompletedAction("profile");
+                if (updated.displayName) {
+                    setProfileForm((prev) => ({ ...prev, displayName: updated.displayName }));
+                }
+                localStorage.setItem("rc_display_name", updated.displayName || updated.username || updated.email?.split("@")[0] || "");
+                globalThis.setTimeout(() => setCompletedAction((c) => (c === "profile" ? null : c)), 1800);
+            })
+            .catch(() => {
+                setSaveMessage("Profile could not be saved. Check your connection.");
+            })
+            .finally(() => {
+                setSavingAction(null);
+            });
     }
 
     return (
@@ -265,16 +360,24 @@ export default function SettingsPage() {
                             </div>
 
                             <div className="dashboard-actions">
-                                {saveMessage && <span className="settings-save-message">{saveMessage}</span>}
                                 <button
                                     className="settings-btn primary compact-action"
                                     type="button"
                                     onClick={handlePreferenceSave}
+                                    disabled={savingAction !== null}
                                 >
-                                    Save Settings
+                                    {savingAction === "settings"
+                                        ? "Saving..."
+                                        : completedAction === "settings"
+                                            ? "Saved successfully"
+                                            : "Save Settings"}
                                 </button>
                                 <ProfileMenu />
                             </div>
+                        </div>
+
+                        <div className="settings-feedback-row" aria-live="polite">
+                            {saveMessage && <span className="settings-save-message">{saveMessage}</span>}
                         </div>
 
                         <div className="settings-layout">
@@ -301,18 +404,46 @@ export default function SettingsPage() {
 
                                         <form className="settings-form-grid" onSubmit={handleProfileSave}>
                                             <div className="settings-profile-photo">
-                                                <img
-                                                    src="https://i.pravatar.cc/120?img=12"
-                                                    alt="Current profile"
-                                                />
+                                                {profileAvatarUrl ? (
+                                                    <img src={profileAvatarUrl} alt="Current profile" />
+                                                ) : (
+                                                    <div className="settings-profile-initials">
+                                                        {(profileForm.displayName || ROLE_LABELS[role]).split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase()}
+                                                    </div>
+                                                )}
                                                 <label className="settings-file-btn">
                                                     Change profile picture
                                                     <input
                                                         type="file"
                                                         accept="image/*"
                                                         onChange={(event) => {
-                                                            const fileName = event.target.files?.[0]?.name;
-                                                            setProfilePhotoName(fileName ?? "No photo selected");
+                                                            const file = event.target.files?.[0];
+                                                            if (!file) return;
+                                                            setProfilePhotoName(file.name);
+                                                            const reader = new FileReader();
+                                                            reader.onload = () => {
+                                                                const dataUrl = reader.result as string;
+                                                                setProfileAvatarUrl(dataUrl);
+                                                                localStorage.setItem("rc_avatar_url", dataUrl);
+                                                                const token = localStorage.getItem("rc_token") ?? "";
+                                                                if (token) {
+                                                                    setSavingAction("profile");
+                                                                    uploadUserProfilePicture(dataUrl)
+                                                                        .then((updated) => {
+                                                                            const avatar = updated.profileImageData || updated.profileImageUrl || updated.avatarUrl || dataUrl;
+                                                                            setProfileAvatarUrl(avatar);
+                                                                            localStorage.setItem("rc_avatar_url", avatar);
+                                                                            setSaveMessage("Profile picture uploaded successfully.");
+                                                                        })
+                                                                        .catch(() => {
+                                                                            setSaveMessage("Profile picture could not be uploaded to backend.");
+                                                                        })
+                                                                        .finally(() => {
+                                                                            setSavingAction(null);
+                                                                        });
+                                                                }
+                                                            };
+                                                            reader.readAsDataURL(file);
                                                         }}
                                                     />
                                                 </label>
@@ -349,12 +480,12 @@ export default function SettingsPage() {
 
                                             <label className="settings-field">
                                                 Email
-                                                <input type="email" value={profile.email} readOnly />
+                                                <input type="email" value={profileEmail || "No email available"} readOnly />
                                             </label>
 
                                             <label className="settings-field">
                                                 Role
-                                                <input type="text" value={profile.title} readOnly />
+                                                <input type="text" value={ROLE_LABELS[role]} readOnly />
                                             </label>
 
                                             <label className="settings-field">
@@ -382,8 +513,16 @@ export default function SettingsPage() {
                                             </div>
 
                                             <div className="settings-action-row">
-                                                <button className="settings-btn primary" type="submit">
-                                                    Save Profile
+                                                <button
+                                                    className="settings-btn primary"
+                                                    type="submit"
+                                                    disabled={savingAction !== null}
+                                                >
+                                                    {savingAction === "profile"
+                                                        ? "Saving..."
+                                                        : completedAction === "profile"
+                                                            ? "Saved successfully"
+                                                            : "Save Profile"}
                                                 </button>
                                                 <button
                                                     className="settings-btn danger"

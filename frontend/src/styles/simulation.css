@@ -245,7 +245,7 @@
 }
 
 .simulation-status-low {
-    background: rgba(109, 76, 255, 0.10);
+    background: color-mix(in srgb, var(--purple) 10%, transparent);
     color: var(--purple);
 }
 
@@ -271,7 +271,7 @@
 }
 
 .simulation-toggle-btn.active {
-    background: rgba(109, 76, 255, 0.12);
+    background: color-mix(in srgb, var(--purple) 12%, transparent);
     color: var(--purple);
 }
 
@@ -377,7 +377,7 @@
 .simulation-add-btn {
     height: 42px;
     padding: 0 16px;
-    border: 1px solid rgba(109, 76, 255, 0.24);
+    border: 1px solid color-mix(in srgb, var(--purple) 24%, transparent);
     border-radius: 12px;
     background: #fff;
     color: var(--purple);
@@ -387,8 +387,8 @@
 }
 
 .simulation-add-btn:hover {
-    background: rgba(109, 76, 255, 0.08);
-    border-color: rgba(109, 76, 255, 0.36);
+    background: color-mix(in srgb, var(--purple) 8%, transparent);
+    border-color: color-mix(in srgb, var(--purple) 36%, transparent);
 }
 
 .simulation-table-wrap {
@@ -441,7 +441,7 @@
     height: 24px;
     padding: 0 10px;
     border-radius: 999px;
-    background: rgba(109, 76, 255, 0.10);
+    background: color-mix(in srgb, var(--purple) 10%, transparent);
     color: var(--purple);
     font-size: 12px;
     font-weight: 700;
@@ -468,9 +468,9 @@
 }
 
 .simulation-icon-btn:hover {
-    background: rgba(109, 76, 255, 0.08);
+    background: color-mix(in srgb, var(--purple) 8%, transparent);
     color: var(--purple);
-    border-color: rgba(109, 76, 255, 0.26);
+    border-color: color-mix(in srgb, var(--purple) 26%, transparent);
 }
 
 .simulation-delete-btn {
@@ -567,13 +567,13 @@
 }
 
 .simulation-week-option:hover {
-    background: rgba(109, 76, 255, 0.06);
-    border-color: rgba(109, 76, 255, 0.24);
+    background: color-mix(in srgb, var(--purple) 6%, transparent);
+    border-color: color-mix(in srgb, var(--purple) 24%, transparent);
 }
 
 .simulation-week-option.active {
-    background: rgba(109, 76, 255, 0.10);
-    border-color: rgba(109, 76, 255, 0.35);
+    background: color-mix(in srgb, var(--purple) 10%, transparent);
+    border-color: color-mix(in srgb, var(--purple) 35%, transparent);
 }
 
 .simulation-week-option strong {
@@ -689,9 +689,9 @@
 }
 
 .simulation-modal-close:hover {
-    background: rgba(109, 76, 255, 0.08);
+    background: color-mix(in srgb, var(--purple) 8%, transparent);
     color: var(--purple);
-    border-color: rgba(109, 76, 255, 0.26);
+    border-color: color-mix(in srgb, var(--purple) 26%, transparent);
 }
 
 .simulation-result-grid {
@@ -763,8 +763,8 @@
     border-radius: 18px;
     padding: 18px;
     margin-bottom: 18px;
-    background: linear-gradient(135deg, rgba(109, 76, 255, 0.12), rgba(139, 92, 246, 0.05));
-    border: 1px solid rgba(109, 76, 255, 0.18);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--purple) 12%, transparent), color-mix(in srgb, var(--purple2) 5%, transparent));
+    border: 1px solid color-mix(in srgb, var(--purple) 18%, transparent);
 }
 
 .simulation-recommendation-box p {
@@ -815,8 +815,8 @@ body.dark-mode .simulation-result-details {
 }
 
 body.dark-mode .simulation-recommendation-box {
-    background: rgba(109, 76, 255, 0.14) !important;
-    border-color: rgba(109, 76, 255, 0.28) !important;
+    background: color-mix(in srgb, var(--purple) 14%, transparent) !important;
+    border-color: color-mix(in srgb, var(--purple) 28%, transparent) !important;
 }
 
 body.dark-mode .simulation-table th,

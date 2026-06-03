@@ -4,8 +4,8 @@
     --muted: #6b7280;
     --border: rgba(15, 23, 42, 0.10);
     --shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
-    --purple: #6d4cff;
-    --purple2: #8b5cf6;
+    --purple: #b08a45;
+    --purple2: #d7ba83;
     --sidebar-expanded: 250px;
     --sidebar-collapsed: 88px;
 
@@ -24,17 +24,19 @@
 }
 
 body.dark-mode {
-    --bg: #0f172a;
+    --bg: #111827;
     --text: #f8fafc;
-    --muted: #94a3b8;
-    --border: rgba(255, 255, 255, 0.12);
+    --muted: #a8b0bd;
+    --border: rgba(255, 255, 255, 0.11);
     --shadow: 0 12px 30px rgba(0, 0, 0, 0.24);
 
-    --card: #1e293b;
-    --card-soft: #172033;
-    --input: #1e293b;
-    --dropdown: #1e293b;
-    --progress-bg: #334155;
+    --purple: #b08a45;
+    --purple2: #d7ba83;
+    --card: #1b2430;
+    --card-soft: #151f2b;
+    --input: #1b2430;
+    --dropdown: #1b2430;
+    --progress-bg: #354153;
 
     --green-soft: rgba(34, 197, 94, 0.18);
     --green-text: #86efac;
@@ -136,6 +138,20 @@ body {
     min-width: 0;
 }
 
+.sidebar-brand-logo-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.sidebar-logo-image {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+    flex-shrink: 0;
+    border-radius: 6px;
+}
+
 .sidebar-brand h2 {
     margin: 0;
     font-size: 24px;
@@ -186,6 +202,51 @@ body {
     min-height: 48px;
 }
 
+.sidebar-group {
+    display: grid;
+    gap: 8px;
+}
+
+.sidebar-group-toggle {
+    width: 100%;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+}
+
+.sidebar-group-caret {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    color: inherit;
+}
+
+.sidebar-subnav {
+    display: grid;
+    gap: 6px;
+    padding-left: 18px;
+}
+
+.sidebar-sublink {
+    min-height: 38px;
+    border-radius: 12px;
+    padding: 0 12px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.sidebar-sublink:hover,
+.sidebar-sublink.active {
+    background: color-mix(in srgb, var(--purple) 12%, transparent);
+    color: var(--purple);
+}
+
 .sidebar-link-icon {
     color: inherit;
     width: 20px;
@@ -199,7 +260,7 @@ body {
 }
 
 .sidebar-link:hover {
-    background: rgba(109, 76, 255, 0.12);
+    background: color-mix(in srgb, var(--purple) 12%, transparent);
     color: var(--purple);
 }
 
@@ -397,7 +458,36 @@ body {
     color: var(--muted);
 }
 
-/* MINI CHART */
+/* MINI CHART (SVG bar chart) */
+.mini-chart-wrap {
+    width: 100%;
+}
+
+.mini-chart-svg {
+    width: 100%;
+    height: 190px;
+    display: block;
+    overflow: visible;
+}
+
+.mini-chart-grid-line {
+    stroke: rgba(15, 23, 42, 0.09);
+    stroke-width: 1;
+    stroke-dasharray: 4 4;
+}
+
+.mini-chart-axis-text {
+    fill: var(--muted);
+    font-size: 11px;
+    font-family: Inter, system-ui, sans-serif;
+}
+
+.mini-chart-axis-line {
+    stroke: rgba(15, 23, 42, 0.14);
+    stroke-width: 1;
+}
+
+/* Legacy bar fallback (kept for safety) */
 .mini-chart-bars {
     display: flex;
     align-items: end;
@@ -420,6 +510,15 @@ body {
     font-size: 12px;
     color: var(--muted);
     margin-top: 6px;
+}
+
+/* Dark mode mini chart */
+body.dark-mode .mini-chart-grid-line {
+    stroke: rgba(255, 255, 255, 0.10);
+}
+
+body.dark-mode .mini-chart-axis-line {
+    stroke: rgba(255, 255, 255, 0.15);
 }
 
 /* FORECAST LIST */
@@ -513,6 +612,52 @@ body {
 /* DASHBOARD CAMERA FEED */
 .dashboard-camera-frame {
     margin-bottom: 14px;
+}
+
+.dashboard-camera-ml-status {
+    display: grid;
+    gap: 10px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--card-soft);
+    padding: 14px;
+}
+
+.dashboard-camera-ml-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.dashboard-camera-ml-row span {
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.dashboard-camera-ml-row strong {
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 800;
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
+.dashboard-camera-ml-row strong.connected {
+    color: var(--green-text);
+}
+
+.dashboard-camera-ml-row strong.unavailable {
+    color: var(--red-text);
+}
+
+.dashboard-camera-ml-status p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.45;
 }
 
 /* Camera feed wrapper */
@@ -642,6 +787,16 @@ body {
     display: block;
 }
 
+.profile-avatar-initials {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--purple), var(--purple2));
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 900;
+}
+
 .profile-role-label {
     max-width: 120px;
     color: var(--text);
@@ -712,7 +867,7 @@ body {
 }
 
 .profile-dropdown-item:hover {
-    background: rgba(109, 76, 255, 0.12);
+    background: color-mix(in srgb, var(--purple) 12%, transparent);
 }
 
 .profile-dropdown-item.danger {
@@ -861,7 +1016,7 @@ body {
     height: 40px;
     border: none;
     border-radius: 12px;
-    background: rgba(109, 76, 255, 0.12);
+    background: color-mix(in srgb, var(--purple) 12%, transparent);
     color: var(--purple);
     font-size: 14px;
     font-weight: 800;
@@ -870,8 +1025,8 @@ body {
 
 /* WEATHER WIDGET */
 .weather-card {
-    background: linear-gradient(135deg, rgba(109, 76, 255, 0.16), rgba(139, 92, 246, 0.06));
-    border: 1px solid rgba(109, 76, 255, 0.18);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--purple) 16%, transparent), color-mix(in srgb, var(--purple2) 6%, transparent));
+    border: 1px solid color-mix(in srgb, var(--purple) 18%, transparent);
     border-radius: 22px;
     padding: 20px 22px;
     margin-bottom: 28px;
@@ -898,7 +1053,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 12px 28px rgba(109, 76, 255, 0.12);
+    box-shadow: 0 12px 28px color-mix(in srgb, var(--purple) 12%, transparent);
 }
 
 .weather-label {
@@ -1016,9 +1171,9 @@ body.dark-mode .anomalies-resolve-btn {
 }
 
 body.dark-mode .simulation-add-btn {
-    background: rgba(109, 76, 255, 0.14) !important;
-    color: #c4b5fd !important;
-    border-color: rgba(109, 76, 255, 0.34) !important;
+    background: color-mix(in srgb, var(--purple) 14%, transparent) !important;
+    color: var(--purple2) !important;
+    border-color: color-mix(in srgb, var(--purple) 34%, transparent) !important;
 }
 
 body.dark-mode .simulation-toggle-btn.active,
@@ -1201,7 +1356,7 @@ body.dark-mode .anomaly-table-badge {
     width: 34px;
     height: 34px;
     border-radius: 999px;
-    border: 4px solid rgba(109, 76, 255, 0.16);
+    border: 4px solid color-mix(in srgb, var(--purple) 16%, transparent);
     border-top-color: var(--purple);
     animation: session-spin 0.8s linear infinite;
 }
@@ -1236,7 +1391,7 @@ body.dark-mode .profile-dropdown-item {
 
 body.dark-mode .profile-dropdown-item:hover,
 body.dark-mode .notification-view-all:hover {
-    background: rgba(109, 76, 255, 0.16) !important;
+    background: color-mix(in srgb, var(--purple) 18%, transparent) !important;
 }
 
 /* RESPONSIVE */

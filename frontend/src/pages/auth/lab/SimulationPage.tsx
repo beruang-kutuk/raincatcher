@@ -1,11 +1,18 @@
-import { useMemo, useState } from "react";
-import { ExternalLink, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowRight, Trash2 } from "lucide-react";
 import "../../../styles/dashboard.css";
 import "../../../styles/simulation.css";
 import Sidebar from "../../../components/layout/Sidebar";
 import ProfileMenu from "../../../components/layout/ProfileMenu";
+import { getWhatIfScenario, type WhatIfScenarioResponse } from "../../../services/forecastApi";
 import { RAINWATER_TANK_NAME } from "../../../services/sensorInputs";
 import { formatDateRange, getProjectionDays } from "../../../services/time";
+import {
+    getSimulationScenarios,
+    saveSimulationScenario,
+    deleteSimulationScenario,
+    type SimulationScenarioRecord,
+} from "../../../services/simulationApi";
 
 type SummaryCard = {
     label: string;
@@ -31,22 +38,38 @@ type ScenarioRow = {
     rainfallChange: string;
     usageChange: string;
     efficiency: string;
+    forecastPeriod: string;
     recommendation: string;
     tag?: string;
 };
 
+const DEFAULT_CATCHMENT_AREA_M2 = 75;
+
 function buildProjection(startingLevel: number, efficiency: number, days: number): ProjectionPoint[] {
     const efficiencyLift = (efficiency - 80) * 0.08;
-
     return getProjectionDays(days).map((item, index) => {
         const drift = index * 1.8;
         const value = Math.max(0, Math.min(100, Math.round(startingLevel + efficiencyLift - drift)));
+        return { label: item.date, day: item.day, value };
+    });
+}
 
-        return {
-            label: item.date,
-            day: item.day,
-            value,
-        };
+function buildPhysicsProjection(
+    startingLevelPercent: number,
+    rainfallTotalMm: number,
+    dailyUsageM3: number,
+    capacityM3: number,
+    efficiencyPercent: number,
+    days: number,
+): ProjectionPoint[] {
+    const efficiencyRatio = efficiencyPercent / 100;
+    const harvestM3 = rainfallTotalMm * DEFAULT_CATCHMENT_AREA_M2 * efficiencyRatio / 1000;
+    let storageM3 = (startingLevelPercent / 100) * capacityM3;
+    return getProjectionDays(days).map((item, index) => {
+        const dayHarvest = index === 0 ? harvestM3 : 0;
+        storageM3 = Math.max(0, Math.min(capacityM3, storageM3 + dayHarvest - dailyUsageM3));
+        const levelPercent = capacityM3 > 0 ? Math.round((storageM3 / capacityM3) * 100) : 0;
+        return { label: item.date, day: item.day, value: levelPercent };
     });
 }
 
@@ -190,6 +213,34 @@ function StorageProjectionTable({ data }: { data: ProjectionPoint[] }) {
     );
 }
 
+function backendToRow(r: SimulationScenarioRecord): ScenarioRow {
+    const final = r.finalLevelPercent ?? 0;
+    const low = r.lowestLevelPercent ?? 0;
+    return {
+        id: r.id,
+        name: r.scenarioName,
+        description: `Start ${r.startingLevelPercent ?? "--"}% · Rain ${r.rainfallMm ?? 0}mm · Usage ${r.dailyUsageM3 ?? 0}m³/day`,
+        finalLevel: `${final.toFixed(1)}%`,
+        lowestLevel: `${low.toFixed(1)}%`,
+        overflowRisk: r.overflowRisk,
+        shortageRisk: r.shortageRisk,
+        rainfallChange: `${r.rainfallMm ?? 0} mm`,
+        usageChange: `${r.dailyUsageM3 ?? 0} m³/day`,
+        efficiency: `${r.collectionEfficiencyPercent ?? "--"}%`,
+        forecastPeriod: "--",
+        recommendation: r.recommendation,
+        tag: r.sourceType === "BACKEND" ? "Backend" : "Local",
+    };
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const defaultWeekOptions = [
+    formatDateRange(7),
+    formatDateRange(7, new Date(Date.now() + 7 * DAY_MS)),
+    formatDateRange(7, new Date(Date.now() + 14 * DAY_MS)),
+    formatDateRange(7, new Date(Date.now() + 21 * DAY_MS)),
+];
+
 export default function SimulationPage() {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [startingLevel, setStartingLevel] = useState(78);
@@ -200,13 +251,33 @@ export default function SimulationPage() {
     const [tankCapacity, setTankCapacity] = useState("100");
     const [projectionView, setProjectionView] = useState<"chart" | "table">("chart");
     const [weekModalOpen, setWeekModalOpen] = useState(false);
-    const [selectedWeek, setSelectedWeek] = useState(formatDateRange(7));
+    const [selectedWeek, setSelectedWeek] = useState(defaultWeekOptions[0]);
     const [customStartDate, setCustomStartDate] = useState("");
     const [customEndDate, setCustomEndDate] = useState("");
 
     const [scenarioRows, setScenarioRows] = useState<ScenarioRow[]>([]);
     const [selectedScenario, setSelectedScenario] = useState<ScenarioRow | null>(null);
     const [addScenarioOpen, setAddScenarioOpen] = useState(false);
+    const [forecastServiceRunning, setForecastServiceRunning] = useState(false);
+    const [forecastServiceError, setForecastServiceError] = useState("");
+    const [forecastServiceResult, setForecastServiceResult] = useState<WhatIfScenarioResponse | null>(null);
+    const [localSimulationData, setLocalSimulationData] = useState<ProjectionPoint[] | null>(null);
+    const [simulationRan, setSimulationRan] = useState(false);
+    const [scenariosLoading, setScenariosLoading] = useState(true);
+    const [scenarioSaveError, setScenarioSaveError] = useState("");
+
+    // Load saved scenarios from backend on mount
+    useEffect(() => {
+        setScenariosLoading(true);
+        getSimulationScenarios()
+            .then((records) => {
+                setScenarioRows(records.map(backendToRow));
+            })
+            .catch(() => {
+                // Keep empty list — backend may not be deployed yet
+            })
+            .finally(() => setScenariosLoading(false));
+    }, []);
 
     const [newScenario, setNewScenario] = useState({
         name: "",
@@ -217,10 +288,12 @@ export default function SimulationPage() {
         forecastPeriod: "7 Days",
     });
 
-    const projectionData = useMemo(
+    const sliderProjection = useMemo(
         () => buildProjection(startingLevel, efficiency, forecastPeriod),
         [startingLevel, efficiency, forecastPeriod],
     );
+
+    const projectionData = localSimulationData ?? sliderProjection;
 
     const finalLevel = projectionData.at(-1)?.value ?? startingLevel;
     const lowestLevel = Math.min(...projectionData.map((item) => item.value));
@@ -234,13 +307,6 @@ export default function SimulationPage() {
         { label: "Shortage Risk", value: shortageRisk, subtext: "Derived from projected minimum level", status: shortageRisk === "Low" ? "low" : "warning" },
     ];
 
-    const weekOptions = [
-        formatDateRange(7),
-        formatDateRange(7, new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
-        formatDateRange(7, new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)),
-        formatDateRange(7, new Date(Date.now() + 21 * 24 * 60 * 60 * 1000)),
-    ];
-
     function applyCustomRange() {
         if (customStartDate && customEndDate) {
             setSelectedWeek(`${customStartDate} - ${customEndDate}`);
@@ -251,8 +317,85 @@ export default function SimulationPage() {
         setWeekModalOpen(false);
     }
 
+    function runLocalSimulation() {
+        const rainfallMm = Math.max(0, parseFloat(expectedRainfall) || 0);
+        const usageM3 = Math.max(0, parseFloat(dailyUsage) || 0);
+        const capacityM3 = Math.max(1, parseFloat(tankCapacity) || 100);
+        const days = forecastPeriod;
+
+        const data = buildPhysicsProjection(startingLevel, rainfallMm, usageM3, capacityM3, efficiency, days);
+        setLocalSimulationData(data);
+        setSimulationRan(true);
+        setScenarioSaveError("");
+
+        const simFinal = data.at(-1)?.value ?? startingLevel;
+        const simLow = Math.min(...data.map((p) => p.value));
+        const simHigh = Math.max(...data.map((p) => p.value));
+        const overflowPct = simFinal > 92 ? 65 : simFinal > 80 ? 25 : 8;
+        const shortagePct = simLow < 20 ? 80 : simLow < 35 ? 50 : 10;
+        const overflowLabel = `${overflowPct >= 60 ? "High" : overflowPct >= 30 ? "Medium" : "Low"} (${overflowPct}%)`;
+        const shortageLabel = `${shortagePct >= 60 ? "High" : shortagePct >= 30 ? "Medium" : "Low"} (${shortagePct}%)`;
+        const recommendation =
+            shortagePct >= 60 ? "Shortage risk is high. Reduce usage or prepare backup supply."
+                : overflowPct >= 60 ? "Overflow risk is high. Monitor storage and drainage."
+                    : "Scenario within acceptable operating range.";
+
+        const payload = {
+            scenarioName: "Main Simulation",
+            sourceType: "LOCAL" as const,
+            tankName: RAINWATER_TANK_NAME,
+            startingLevelPercent: startingLevel,
+            finalLevelPercent: simFinal,
+            lowestLevelPercent: simLow,
+            highestLevelPercent: simHigh,
+            rainfallMm,
+            dailyUsageM3: usageM3,
+            tankCapacityM3: capacityM3,
+            collectionEfficiencyPercent: efficiency,
+            overflowRisk: overflowLabel,
+            shortageRisk: shortageLabel,
+            recommendation,
+            projectionJson: JSON.stringify(data),
+        };
+
+        saveSimulationScenario(payload)
+            .then((saved) => {
+                setScenarioRows((prev) => {
+                    const filtered = prev.filter((s) => s.name !== "Main Simulation");
+                    return [backendToRow(saved), ...filtered];
+                });
+            })
+            .catch(() => {
+                // Backend unavailable — still show local row with temporary id
+                setScenarioSaveError("Simulation ran locally. Could not save to backend (deploy updated JAR to Raspberry Pi).");
+                const localRow: ScenarioRow = {
+                    id: Date.now(),
+                    name: "Main Simulation",
+                    description: `Start ${startingLevel}% · Rain ${rainfallMm}mm · Usage ${usageM3}m³/day`,
+                    finalLevel: `${simFinal}%`,
+                    lowestLevel: `${simLow}%`,
+                    overflowRisk: overflowLabel,
+                    shortageRisk: shortageLabel,
+                    rainfallChange: `${rainfallMm} mm`,
+                    usageChange: `${usageM3} m³/day`,
+                    efficiency: `${efficiency}%`,
+                    forecastPeriod: `${days} Days`,
+                    recommendation,
+                    tag: "Local (unsaved)",
+                };
+                setScenarioRows((prev) => {
+                    const filtered = prev.filter((s) => s.name !== "Main Simulation");
+                    return [localRow, ...filtered];
+                });
+            });
+    }
+
     function deleteScenario(id: number) {
+        // Optimistic remove from UI
         setScenarioRows((prev) => prev.filter((scenario) => scenario.id !== id));
+        deleteSimulationScenario(id).catch(() => {
+            // If delete fails (e.g. local-only row with temp id), ignore silently
+        });
     }
 
     function createScenario() {
@@ -260,44 +403,65 @@ export default function SimulationPage() {
         const usage = Number(newScenario.usageChange);
         const start = Number(newScenario.startingLevel);
         const eff = Number(newScenario.efficiency);
+        const days = Number.parseInt(newScenario.forecastPeriod) || 7;
 
-        const scenarioProjection = buildProjection(start + rainfall * 0.18 - usage * 0.22, eff, Number.parseInt(newScenario.forecastPeriod) || 7);
+        const scenarioProjection = buildPhysicsProjection(start, Math.max(0, rainfall), Math.max(0, usage), 100, eff, days);
         const scenarioFinal = scenarioProjection.at(-1)?.value ?? start;
         const scenarioLow = Math.min(...scenarioProjection.map((item) => item.value));
-        const overflow = Math.max(2, Math.min(90, Math.round(scenarioFinal > 90 ? 45 + rainfall * 0.2 : 8 + rainfall * 0.1)));
-        const shortage = Math.max(2, Math.min(90, Math.round(scenarioLow < 35 ? 55 + usage * 0.2 : 10 + usage * 0.1)));
-
+        const scenarioHigh = Math.max(...scenarioProjection.map((item) => item.value));
+        const overflow = Math.max(2, Math.min(90, Math.round(scenarioFinal > 90 ? 45 : 8)));
+        const shortage = Math.max(2, Math.min(90, Math.round(scenarioLow < 35 ? 55 : 10)));
+        const overflowLabel = `${overflow > 40 ? "High" : overflow > 20 ? "Medium" : "Low"} (${overflow}%)`;
+        const shortageLabel = `${shortage > 40 ? "High" : shortage > 20 ? "Medium" : "Low"} (${shortage}%)`;
         const scenarioName = newScenario.name.trim() || "Custom Scenario";
+        const recommendation =
+            shortage > 40
+                ? "Shortage risk is high. Reduce usage or prepare alternative water supply."
+                : overflow > 40
+                    ? "Overflow risk is high. Monitor storage level and prepare drainage."
+                    : "Scenario remains within acceptable operating range.";
 
-        const createdScenario: ScenarioRow = {
-            id: Date.now(),
-            name: scenarioName,
-            description: `Rainfall ${rainfall >= 0 ? "+" : ""}${rainfall}%, usage ${usage >= 0 ? "+" : ""}${usage}%`,
-            finalLevel: `${scenarioFinal}%`,
-            lowestLevel: `${scenarioLow}%`,
-            overflowRisk: `${overflow > 40 ? "High" : overflow > 20 ? "Medium" : "Low"} (${overflow}%)`,
-            shortageRisk: `${shortage > 40 ? "High" : shortage > 20 ? "Medium" : "Low"} (${shortage}%)`,
-            rainfallChange: `${rainfall >= 0 ? "+" : ""}${rainfall}%`,
-            usageChange: `${usage >= 0 ? "+" : ""}${usage}%`,
-            efficiency: `${eff}%`,
-            recommendation:
-                shortage > 40
-                    ? "Shortage risk is high. Reduce usage or prepare alternative water supply."
-                    : overflow > 40
-                        ? "Overflow risk is high. Monitor storage level and prepare drainage."
-                        : "Scenario remains within acceptable operating range.",
-        };
-
-        setScenarioRows((prev) => [...prev, createdScenario]);
         setAddScenarioOpen(false);
-        setNewScenario({
-            name: "",
-            rainfallChange: "0",
-            usageChange: "0",
-            startingLevel: "78",
-            efficiency: "88",
-            forecastPeriod: "7 Days",
-        });
+        setNewScenario({ name: "", rainfallChange: "0", usageChange: "0", startingLevel: "78", efficiency: "88", forecastPeriod: "7 Days" });
+
+        saveSimulationScenario({
+            scenarioName,
+            sourceType: "LOCAL",
+            tankName: RAINWATER_TANK_NAME,
+            startingLevelPercent: start,
+            finalLevelPercent: scenarioFinal,
+            lowestLevelPercent: scenarioLow,
+            highestLevelPercent: scenarioHigh,
+            rainfallMm: Math.max(0, rainfall),
+            dailyUsageM3: Math.max(0, usage),
+            tankCapacityM3: 100,
+            collectionEfficiencyPercent: eff,
+            overflowRisk: overflowLabel,
+            shortageRisk: shortageLabel,
+            recommendation,
+            projectionJson: JSON.stringify(scenarioProjection),
+        })
+            .then((saved) => {
+                setScenarioRows((prev) => [...prev, backendToRow(saved)]);
+            })
+            .catch(() => {
+                const localRow: ScenarioRow = {
+                    id: Date.now(),
+                    name: scenarioName,
+                    description: `Rainfall ${rainfall >= 0 ? "+" : ""}${rainfall}%, usage ${usage >= 0 ? "+" : ""}${usage}%`,
+                    finalLevel: `${scenarioFinal}%`,
+                    lowestLevel: `${scenarioLow}%`,
+                    overflowRisk: overflowLabel,
+                    shortageRisk: shortageLabel,
+                    rainfallChange: `${rainfall >= 0 ? "+" : ""}${rainfall}%`,
+                    usageChange: `${usage >= 0 ? "+" : ""}${usage}%`,
+                    efficiency: `${eff}%`,
+                    forecastPeriod: newScenario.forecastPeriod,
+                    recommendation,
+                    tag: "Local (unsaved)",
+                };
+                setScenarioRows((prev) => [...prev, localRow]);
+            });
     }
 
     return (
@@ -432,9 +596,118 @@ export default function SimulationPage() {
                                     </div>
                                 </div>
 
-                                <button className="simulation-run-btn" type="button">
-                                    Run Simulation
+                                <button
+                                    className="simulation-run-btn"
+                                    type="button"
+                                    onClick={runLocalSimulation}
+                                >
+                                    {simulationRan ? "Re-run Simulation" : "Run Simulation"}
                                 </button>
+                                {simulationRan && (
+                                    <p style={{ fontSize: "12px", color: "var(--muted)", marginTop: "4px" }}>
+                                        Simulation complete. Chart and scenario comparison updated.
+                                    </p>
+                                )}
+
+                                <button
+                                    className="simulation-run-btn"
+                                    type="button"
+                                    style={{ marginTop: "8px", opacity: 0.9 }}
+                                    disabled={forecastServiceRunning}
+                                    onClick={async () => {
+                                        setForecastServiceRunning(true);
+                                        setForecastServiceError("");
+                                        setForecastServiceResult(null);
+                                        try {
+                                            const result = await getWhatIfScenario({
+                                                scenarioName: "Backend Simulation",
+                                                rainfallChangePercent: Number(expectedRainfall),
+                                                usageChangePercent: Number(dailyUsage),
+                                                startingTankLevelPercent: startingLevel,
+                                                tankCapacityLitres: Number(tankCapacity) * 1000,
+                                                collectionEfficiencyPercent: efficiency,
+                                                forecastPeriodDays: forecastPeriod,
+                                            });
+                                            setForecastServiceResult(result);
+                                            // Persist backend scenario to DB
+                                            const scenarioName = result.scenarioName ?? "Backend Simulation";
+                                            saveSimulationScenario({
+                                                scenarioName,
+                                                sourceType: "BACKEND",
+                                                tankName: RAINWATER_TANK_NAME,
+                                                startingLevelPercent: startingLevel,
+                                                finalLevelPercent: result.projectedFinalLevel,
+                                                lowestLevelPercent: result.lowestLevel,
+                                                rainfallMm: Number(expectedRainfall),
+                                                dailyUsageM3: Number(dailyUsage),
+                                                tankCapacityM3: Number(tankCapacity),
+                                                collectionEfficiencyPercent: efficiency,
+                                                overflowRisk: `${result.overflowRisk} (${result.overflowRiskPercent}%)`,
+                                                shortageRisk: `${result.shortageRisk} (${result.shortageRiskPercent}%)`,
+                                                recommendation: result.recommendation,
+                                                projectionJson: "[]",
+                                            })
+                                                .then((saved) => {
+                                                    setScenarioRows((prev) => {
+                                                        const filtered = prev.filter((s) => s.name !== scenarioName);
+                                                        return [backendToRow(saved), ...filtered];
+                                                    });
+                                                })
+                                                .catch(() => {
+                                                    // Save failed — show in UI with temp id anyway
+                                                    const fallbackRow: ScenarioRow = {
+                                                        id: Date.now(),
+                                                        name: scenarioName,
+                                                        description: "Backend forecast service result",
+                                                        finalLevel: `${result.projectedFinalLevel}%`,
+                                                        lowestLevel: `${result.lowestLevel}%`,
+                                                        overflowRisk: `${result.overflowRisk} (${result.overflowRiskPercent}%)`,
+                                                        shortageRisk: `${result.shortageRisk} (${result.shortageRiskPercent}%)`,
+                                                        rainfallChange: `${Number(expectedRainfall)}%`,
+                                                        usageChange: `${Number(dailyUsage)}%`,
+                                                        efficiency: `${efficiency}%`,
+                                                        forecastPeriod: `${forecastPeriod} Days`,
+                                                        recommendation: result.recommendation,
+                                                        tag: "Backend (unsaved)",
+                                                    };
+                                                    setScenarioRows((prev) => {
+                                                        const filtered = prev.filter((s) => s.name !== scenarioName);
+                                                        return [fallbackRow, ...filtered];
+                                                    });
+                                                });
+                                        } catch (err) {
+                                            const msg = err instanceof Error ? err.message : String(err);
+                                            const is503 = msg.includes("503");
+                                            setForecastServiceError(is503
+                                                ? "Backend forecast service unavailable (HTTP 503). Deploy the updated backend JAR to the Raspberry Pi and restart the service. Use 'Run Simulation' for local calculation in the meantime."
+                                                : `Forecast service error: ${msg}`);
+                                        } finally {
+                                            setForecastServiceRunning(false);
+                                        }
+                                    }}
+                                >
+                                    {forecastServiceRunning ? "Running Forecast…" : "Run with Forecast Service"}
+                                </button>
+
+                                {forecastServiceError && (
+                                    <p className="forecast-error-message" style={{ fontSize: "12px", color: "#dc2626", marginTop: "8px" }}>
+                                        {forecastServiceError}
+                                    </p>
+                                )}
+
+                                {forecastServiceResult && (
+                                    <div style={{ marginTop: "10px", padding: "12px", background: "color-mix(in srgb, var(--purple) 6%, transparent)", borderRadius: "12px", border: "1px solid color-mix(in srgb, var(--purple) 15%, transparent)" }}>
+                                        <p style={{ fontWeight: 700, fontSize: "13px", marginBottom: "6px" }}>Forecast Service Result</p>
+                                        <div style={{ display: "grid", gap: "4px", fontSize: "12px" }}>
+                                            <span>Final Level: <strong>{forecastServiceResult.projectedFinalLevel}%</strong></span>
+                                            <span>Lowest Level: <strong>{forecastServiceResult.lowestLevel}%</strong></span>
+                                            <span>Overflow Risk: <strong>{forecastServiceResult.overflowRisk} ({forecastServiceResult.overflowRiskPercent}%)</strong></span>
+                                            <span>Shortage Risk: <strong>{forecastServiceResult.shortageRisk} ({forecastServiceResult.shortageRiskPercent}%)</strong></span>
+                                        </div>
+                                        <p style={{ marginTop: "8px", fontSize: "12px", color: "var(--muted)" }}>{forecastServiceResult.recommendation}</p>
+                                        <p style={{ fontSize: "11px", color: "var(--muted)", marginTop: "4px" }}>Baseline rule-based forecast service. This is not a trained ML model.</p>
+                                    </div>
+                                )}
                             </section>
 
                             <div className="simulation-right-column">
@@ -497,10 +770,20 @@ export default function SimulationPage() {
                                 </button>
                             </div>
 
-                            {scenarioRows.length === 0 ? (
+                            {scenarioSaveError && (
+                                <p style={{ fontSize: "12px", color: "#b45309", marginBottom: "8px", padding: "6px 10px", background: "rgba(251,191,36,0.1)", borderRadius: "6px" }}>
+                                    {scenarioSaveError}
+                                </p>
+                            )}
+
+                            {scenariosLoading ? (
+                                <div className="empty-state">
+                                    <span>Loading saved scenarios…</span>
+                                </div>
+                            ) : scenarioRows.length === 0 ? (
                                 <div className="empty-state">
                                     <strong>No saved scenarios yet</strong>
-                                    <span>Add a scenario to compare rainfall, usage, starting level, and efficiency assumptions.</span>
+                                    <span>Click "Run Simulation" or "Add Scenario" to create and persist a scenario.</span>
                                 </div>
                             ) : (
                                 <div className="simulation-table-wrap">
@@ -541,7 +824,7 @@ export default function SimulationPage() {
                                                                 title="View simulation result"
                                                                 onClick={() => setSelectedScenario(row)}
                                                             >
-                                                                <ExternalLink size={16} />
+                                                                <ArrowRight size={16} />
                                                             </button>
 
                                                             <button
@@ -584,7 +867,7 @@ export default function SimulationPage() {
                         </div>
 
                         <div className="simulation-week-options">
-                            {weekOptions.map((week) => (
+                            {defaultWeekOptions.map((week) => (
                                 <button
                                     key={week}
                                     type="button"
@@ -689,6 +972,11 @@ export default function SimulationPage() {
                             <div className="simulation-result-detail-row">
                                 <span>Collection Efficiency</span>
                                 <strong>{selectedScenario.efficiency}</strong>
+                            </div>
+
+                            <div className="simulation-result-detail-row">
+                                <span>Forecast Period</span>
+                                <strong>{selectedScenario.forecastPeriod}</strong>
                             </div>
                         </div>
 
@@ -820,4 +1108,3 @@ export default function SimulationPage() {
         </div>
     );
 }
-

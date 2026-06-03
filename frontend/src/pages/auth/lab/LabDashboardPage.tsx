@@ -1,14 +1,33 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Bell, CloudRain, Droplets, ThermometerSun, Wind } from "lucide-react";
 import "../../../styles/dashboard.css";
 import Sidebar from "../../../components/layout/Sidebar";
 import ProfileMenu from "../../../components/layout/ProfileMenu";
 import RpiCameraFeed from "../../../components/lab/RpiCameraFeed";
+import { getLatestFrameUrl } from "../../../services/cameraMlApi";
+import {
+    getLatestAnalysisRecord,
+    getLatestCameraRecord,
+    getLatestYoloRecord,
+    type CameraRecord,
+} from "../../../services/cameraRecordsApi";
+import {
+    getLatestTelemetry,
+    type IotTelemetryReading,
+} from "../../../services/iotTelemetryApi";
+import {
+    getAnomalySummary,
+    type BackendAnomaly,
+} from "../../../services/anomalyApi";
+import {
+    getCurrentWeather,
+    getDailyForecastSeries,
+    type WeatherRecord,
+} from "../../../services/weatherApi";
+import { buildBackendUrl } from "../../../services/apiConfig";
 import {
     RAINWATER_TANK_NAME,
     SENSOR_INPUT_TAGS,
-    formatNullableValue,
-    placeholderTelemetryRecord,
 } from "../../../services/sensorInputs";
 import {
     formatCurrentDateTime,
@@ -18,6 +37,7 @@ import {
 type StatCardData = {
     title: string;
     value: string;
+    subValue?: string;
     status?: "normal" | "flagged" | "warning";
     inputTag: string;
 };
@@ -39,29 +59,72 @@ type NotificationItem = {
 };
 
 const notifications: NotificationItem[] = [];
-const rainfallData: Array<{ day: string; rain: number | null }> = [];
-const anomalies: AnomalyItem[] = [];
+const TELEMETRY_POLL_MS = 5000;
 
-function getSeverityClass(severity: "low" | "medium" | "high") {
-    switch (severity) {
-        case "high":
-            return "severity-high";
-        case "medium":
-            return "severity-medium";
-        default:
-            return "severity-low";
+function formatDateLabel(dateStr: string | null | undefined): string {
+    if (!dateStr) return "?";
+    try {
+        return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "2-digit" });
+    } catch {
+        return "?";
     }
 }
 
-function StatCard({ title, value, status = "warning", inputTag }: StatCardData) {
+function getSeverityClass(severity: "low" | "medium" | "high") {
+    switch (severity) {
+        case "high": return "severity-high";
+        case "medium": return "severity-medium";
+        default: return "severity-low";
+    }
+}
+
+function formatTelemetryValue(value: number | undefined, unit = "", decimals = 2) {
+    if (value === undefined || value === null || Number.isNaN(value)) return "--";
+    return `${value.toFixed(decimals)} ${unit}`.trim();
+}
+
+function formatWeatherRainfall(value: number | null | undefined) {
+    if (typeof value !== "number" || Number.isNaN(value)) return "0.0 mm";
+    return `${value.toFixed(1)} mm`;
+}
+
+function formatWeatherWind(value: number | null | undefined) {
+    if (typeof value !== "number" || Number.isNaN(value)) return "Unavailable";
+    return `${value.toFixed(1)} km/h`;
+}
+
+function formatWeatherValue(value: number | null | undefined, unit: string, decimals = 0) {
+    if (typeof value !== "number" || Number.isNaN(value)) return `-- ${unit}`;
+    return `${value.toFixed(decimals)} ${unit}`;
+}
+
+function formatReadableStatus(value: string | null | undefined) {
+    if (!value) return "--";
+    return value
+        .replace(/_/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function toDashboardAnomaly(row: BackendAnomaly): AnomalyItem {
+    return {
+        id: row.id ?? Date.now(),
+        title: row.title ?? "Anomaly",
+        message: row.description ?? "Anomaly details unavailable.",
+        severity: row.severity === "high" || row.severity === "medium" ? row.severity : "low",
+        time: row.createdAt ?? "--",
+    };
+}
+
+function StatCard({ title, value, subValue, status = "warning", inputTag }: StatCardData) {
     return (
         <div className="stat-card">
             <div className="stat-card-header">
                 <p className="stat-title">{title}</p>
             </div>
-
             <h3 className="stat-value">{value}</h3>
-
+            {subValue && <p style={{ fontSize: "12px", color: "var(--muted)", margin: "2px 0 0" }}>{subValue}</p>}
             <div className="stat-card-status">
                 <span className={`status-pill status-${status}`}>{inputTag}</span>
             </div>
@@ -69,36 +132,78 @@ function StatCard({ title, value, status = "warning", inputTag }: StatCardData) 
     );
 }
 
-function MiniBarChart({ data }: { data: Array<{ day: string; rain: number | null }> }) {
-    const numericValues = data
-        .map((item) => item.rain)
-        .filter((value): value is number => typeof value === "number");
+function DashboardRainfallChart({ data }: { data: Array<{ day: string; rain: number | null }> }) {
+    const numericValues = data.map((d) => d.rain).filter((v): v is number => typeof v === "number" && !Number.isNaN(v));
 
     if (numericValues.length === 0) {
         return (
             <div className="empty-state compact">
-                <strong>No rainfall history yet</strong>
-                <span>Rainfall bars will render after weather or local station input is connected.</span>
+                <strong>No 7-day rainfall forecast yet</strong>
+                <span>Chart will load AccuWeather data when the backend is connected.</span>
             </div>
         );
     }
 
-    const max = Math.max(...numericValues);
+    const svgW = 640;
+    const svgH = 200;
+    const pL = 38;
+    const pR = 12;
+    const pT = 14;
+    const pB = 42;
+    const chartW = svgW - pL - pR;
+    const chartH = svgH - pT - pB;
+    const maxVal = Math.max(10, ...numericValues);
+    const ticks = [0, maxVal * 0.5, maxVal];
+    const barSlotW = chartW / data.length;
+    const barW = Math.max(8, barSlotW * 0.55);
 
     return (
-        <div className="mini-chart">
-            <div className="mini-chart-bars">
-                {data.map((item) => (
-                    <div key={item.day} className="mini-chart-item">
-                        <div
-                            className="mini-chart-bar"
-                            style={{ height: `${item.rain ? (item.rain / max) * 100 : 0}%` }}
-                            title={`${item.rain ?? 0} mm`}
+        <div className="mini-chart-wrap">
+            <svg viewBox={`0 0 ${svgW} ${svgH}`} className="mini-chart-svg" preserveAspectRatio="none">
+                <defs>
+                    <linearGradient id="dashBarGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="var(--purple2)" />
+                        <stop offset="100%" stopColor="var(--purple)" />
+                    </linearGradient>
+                </defs>
+                {ticks.map((tick) => {
+                    const y = svgH - pB - (tick / maxVal) * chartH;
+                    return (
+                        <g key={tick}>
+                            <line x1={pL} y1={y} x2={svgW - pR} y2={y} className="mini-chart-grid-line" />
+                            <text x={pL - 4} y={y + 4} className="mini-chart-axis-text" textAnchor="end">
+                                {Math.round(tick)}
+                            </text>
+                        </g>
+                    );
+                })}
+                {data.map((item, index) => {
+                    const val = typeof item.rain === "number" ? item.rain : 0;
+                    const barH = maxVal > 0 ? (val / maxVal) * chartH : 0;
+                    const xCenter = pL + (index + 0.5) * barSlotW;
+                    return (
+                        <rect
+                            key={item.day}
+                            x={xCenter - barW / 2}
+                            y={svgH - pB - Math.max(barH, 1)}
+                            width={barW}
+                            height={Math.max(barH, 1)}
+                            rx="3"
+                            fill="url(#dashBarGrad)"
                         />
-                        <span className="mini-chart-label">{item.day}</span>
-                    </div>
-                ))}
-            </div>
+                    );
+                })}
+                <line x1={pL} y1={svgH - pB} x2={svgW - pR} y2={svgH - pB} className="mini-chart-axis-line" />
+                {data.map((item, index) => {
+                    const x = pL + (index + 0.5) * barSlotW;
+                    return (
+                        <text key={`lbl-${index}`} x={x} y={svgH - pB + 16}
+                            className="mini-chart-axis-text" textAnchor="middle">
+                            {item.day}
+                        </text>
+                    );
+                })}
+            </svg>
         </div>
     );
 }
@@ -119,10 +224,7 @@ function ForecastList({ data }: { data: Array<{ day: string; storage: number | n
                 <div key={item.day} className="forecast-row">
                     <span>{item.day}</span>
                     <div className="forecast-progress">
-                        <div
-                            className="forecast-progress-fill"
-                            style={{ width: `${item.storage ?? 0}%` }}
-                        />
+                        <div className="forecast-progress-fill" style={{ width: `${item.storage ?? 0}%` }} />
                     </div>
                     <span>{item.storage === null ? "--" : `${item.storage}%`}</span>
                 </div>
@@ -134,46 +236,256 @@ function ForecastList({ data }: { data: Array<{ day: string; storage: number | n
 export default function LabDashboardPage() {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [notificationOpen, setNotificationOpen] = useState(false);
+
+    // Camera ML
+    const [cameraAnalysis, setCameraAnalysis] = useState<CameraRecord | null>(null);
+    const [latestCameraRecord, setLatestCameraRecord] = useState<CameraRecord | null>(null);
+    const [cameraMlLoading, setCameraMlLoading] = useState(false);
+    const [cameraMlError, setCameraMlError] = useState("");
+
+    // YOLO (compact status only)
+    const [yoloResult, setYoloResult] = useState<CameraRecord | null>(null);
+    const [yoloLoading, setYoloLoading] = useState(false);
+    const [yoloError, setYoloError] = useState("");
+
+    // ESP32 telemetry
+    const [latestTelemetry, setLatestTelemetry] = useState<IotTelemetryReading | null>(null);
+    const [telemetryLoading, setTelemetryLoading] = useState(false);
+    const [telemetryError, setTelemetryError] = useState("");
+    const [weather, setWeather] = useState<WeatherRecord | null>(null);
+    const [weatherError, setWeatherError] = useState("");
+    const [anomalies, setAnomalies] = useState<AnomalyItem[]>([]);
+    const [rainfallSeriesData, setRainfallSeriesData] = useState<Array<{ day: string; rain: number | null }>>([]);
+    const [storageForecastRows, setStorageForecastRows] = useState<Array<{ day: string; storage: number | null }>>([]);
+
     const now = formatCurrentDateTime();
 
-    const stats: StatCardData[] = useMemo(() => [
-        {
-            title: "pH",
-            value: formatNullableValue(placeholderTelemetryRecord.ph, "pH"),
-            status: "warning",
-            inputTag: SENSOR_INPUT_TAGS.ph,
-        },
-        {
-            title: "Turbidity",
-            value: formatNullableValue(placeholderTelemetryRecord.turbidityNtu, "NTU"),
-            status: "warning",
-            inputTag: SENSOR_INPUT_TAGS.turbidity,
-        },
-        {
-            title: "Water Temperature",
-            value: formatNullableValue(placeholderTelemetryRecord.waterTemperatureC, "C"),
-            status: "warning",
-            inputTag: SENSOR_INPUT_TAGS.waterTemperature,
-        },
-        {
-            title: "Tank Level",
-            value: formatNullableValue(placeholderTelemetryRecord.ultrasonicWaterLevelPercent, "%"),
-            status: "warning",
-            inputTag: `${SENSOR_INPUT_TAGS.ultrasonicTrig} + ${SENSOR_INPUT_TAGS.ultrasonicEcho}`,
-        },
-    ], []);
+    useEffect(() => {
+        let active = true;
 
-    const forecastData = useMemo(
-        () => getProjectionDays(7).map((item) => ({ day: item.day, storage: null })),
-        [],
-    );
+        async function loadCameraMlStatus() {
+            setCameraMlLoading(true);
+            setCameraMlError("");
+            try {
+                const [latestRecord, analysis] = await Promise.all([
+                    getLatestCameraRecord(),
+                    getLatestAnalysisRecord(),
+                ]);
+                if (!active) return;
+                setLatestCameraRecord(latestRecord);
+                setCameraAnalysis(analysis);
+            } catch {
+                if (!active) return;
+                setCameraAnalysis(null);
+                setCameraMlError("Camera records unavailable");
+            } finally {
+                if (active) setCameraMlLoading(false);
+            }
+        }
+
+        async function loadTelemetry(showLoading = false) {
+            if (showLoading) setTelemetryLoading(true);
+            setTelemetryError("");
+            try {
+                const reading = await getLatestTelemetry();
+                if (!active) return;
+                setLatestTelemetry(reading);
+            } catch {
+                if (!active) return;
+                setLatestTelemetry(null);
+                setTelemetryError("ESP32 telemetry unavailable");
+            } finally {
+                if (active && showLoading) setTelemetryLoading(false);
+            }
+        }
+
+        async function loadYoloStatus() {
+            setYoloLoading(true);
+            try {
+                const result = await getLatestYoloRecord();
+                if (!active) return;
+                setYoloResult(result);
+            } catch {
+                if (!active) return;
+                setYoloError("YOLO unavailable");
+            } finally {
+                if (active) setYoloLoading(false);
+            }
+        }
+
+        async function loadWeatherAndRainfall() {
+            setWeatherError("");
+
+            // 1. Fetch multi-day series (always needed for chart; also used as weather fallback)
+            let series: import("../../../services/weatherApi").DailyForecastDay[] = [];
+            try {
+                series = await getDailyForecastSeries();
+            } catch { /* ignore — handled below */ }
+            if (!active) return;
+
+            // Populate rainfall chart from series
+            if (series.length > 0) {
+                setRainfallSeriesData(
+                    series.map((d, i) => ({
+                        day: formatDateLabel(d.date) || `D${i + 1}`,
+                        rain: typeof d.rainfallAmount === "number" ? d.rainfallAmount : 0,
+                    }))
+                );
+            }
+
+            // 2. Try current weather; on failure fall back to first daily forecast entry
+            try {
+                const record = await getCurrentWeather();
+                if (!active) return;
+                setWeather(record);
+            } catch {
+                if (!active) return;
+                if (series.length > 0) {
+                    const first = series[0];
+                    setWeather({
+                        location: first.location ?? "Shah Alam",
+                        recordType: "daily-forecast",
+                        temperature: first.temperature ?? null,
+                        humidity: null,
+                        rainfallAmount: typeof first.rainfallAmount === "number" ? first.rainfallAmount : 0,
+                        rainfallProbability: first.rainfallProbability ?? null,
+                        windSpeed: null,
+                        weatherCondition: first.weatherCondition ?? null,
+                        source: "AccuWeather (daily forecast)",
+                        providerRecordedAt: first.date ?? null,
+                        recordedAt: first.date ?? null,
+                    });
+                    setWeatherError("");
+                } else {
+                    setWeather(null);
+                    setWeatherError("Weather unavailable — check AccuWeather API key on Raspberry Pi");
+                }
+            }
+        }
+
+        async function loadAnomalySummary() {
+            try {
+                const summary = await getAnomalySummary();
+                if (!active) return;
+                setAnomalies((summary.recent ?? []).map(toDashboardAnomaly));
+            } catch {
+                if (!active) return;
+                setAnomalies([]);
+            }
+        }
+
+        async function loadStorageForecast() {
+            try {
+                const response = await fetch(buildBackendUrl("/api/forecast/tank-storage"), {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: "{}",
+                });
+                if (!response.ok || !active) return;
+                const result = await response.json() as {
+                    dailyProjection?: Array<{ levelPercent?: number }>;
+                };
+                const projection = result.dailyProjection;
+                if (!Array.isArray(projection) || projection.length === 0) return;
+                const days = getProjectionDays(projection.length);
+                setStorageForecastRows(
+                    projection.map((pt, i) => ({
+                        day: days[i]?.day ?? `Day ${i + 1}`,
+                        storage: typeof pt.levelPercent === "number" ? Math.round(pt.levelPercent) : null,
+                    }))
+                );
+            } catch {
+                // Keep empty — shows "No storage forecast yet" which is accurate when API fails
+            }
+        }
+
+        void loadCameraMlStatus();
+        void loadTelemetry(true);
+        void loadYoloStatus();
+        void loadWeatherAndRainfall();
+        void loadAnomalySummary();
+        void loadStorageForecast();
+        const telemetryIntervalId = globalThis.setInterval(() => {
+            void loadTelemetry(false);
+            void loadAnomalySummary();
+        }, TELEMETRY_POLL_MS);
+
+        return () => {
+            active = false;
+            globalThis.clearInterval(telemetryIntervalId);
+        };
+    }, []);
+
+    const stats: StatCardData[] = useMemo(() => {
+        const t = latestTelemetry;
+
+        if (telemetryLoading) {
+            return [
+                { title: "pH", value: "Loading...", status: "warning", inputTag: SENSOR_INPUT_TAGS.ph },
+                { title: "Turbidity", value: "Loading...", status: "warning", inputTag: SENSOR_INPUT_TAGS.turbidity },
+                { title: "Water Temperature", value: "Loading...", status: "warning", inputTag: SENSOR_INPUT_TAGS.waterTemperature },
+                { title: "Tank Level", value: "Loading...", status: "warning", inputTag: `${SENSOR_INPUT_TAGS.ultrasonicTrig} + ${SENSOR_INPUT_TAGS.ultrasonicEcho}` },
+            ];
+        }
+
+        if (telemetryError || !t) {
+            const valueText = telemetryError ? "ESP32 telemetry unavailable." : "Waiting for ESP32 telemetry...";
+            return [
+                { title: "pH", value: valueText, status: "warning", inputTag: SENSOR_INPUT_TAGS.ph },
+                { title: "Turbidity", value: valueText, status: "warning", inputTag: SENSOR_INPUT_TAGS.turbidity },
+                { title: "Water Temperature", value: valueText, status: "warning", inputTag: SENSOR_INPUT_TAGS.waterTemperature },
+                { title: "Tank Level", value: valueText, status: "warning", inputTag: `${SENSOR_INPUT_TAGS.ultrasonicTrig} + ${SENSOR_INPUT_TAGS.ultrasonicEcho}` },
+            ];
+        }
+
+        return [
+            {
+                title: "pH",
+                value: formatTelemetryValue(t.ph, "pH"),
+                status: t.ph >= 6.5 && t.ph <= 8.5 ? "normal" : "flagged",
+                inputTag: SENSOR_INPUT_TAGS.ph,
+            },
+            {
+                title: "Turbidity",
+                value: formatTelemetryValue(t.turbidity, "NTU"),
+                status: t.turbidity <= 100 ? "normal" : "flagged",
+                inputTag: SENSOR_INPUT_TAGS.turbidity,
+            },
+            {
+                title: "Water Temperature",
+                value: formatTelemetryValue(t.waterTemperature, "°C"),
+                status: "normal",
+                inputTag: SENSOR_INPUT_TAGS.waterTemperature,
+            },
+            {
+                title: "Tank Level",
+                value: formatTelemetryValue(t.waterLevelPercent, "%", 1),
+                subValue: `Distance: ${formatTelemetryValue(t.ultrasonicDistanceCm, "cm", 1)}`,
+                status: t.waterLevelPercent >= 20 ? "normal" : "flagged",
+                inputTag: `${SENSOR_INPUT_TAGS.ultrasonicTrig} + ${SENSOR_INPUT_TAGS.ultrasonicEcho}`,
+            },
+        ];
+    }, [latestTelemetry, telemetryLoading, telemetryError]);
+
+    const forecastData = storageForecastRows.length > 0
+        ? storageForecastRows
+        : getProjectionDays(7).map((item) => ({ day: item.day, storage: null as null }));
+
+    const cameraMlOnline = Boolean(cameraAnalysis && !cameraMlError);
+    const cameraMlSeverityClass = cameraAnalysis?.severity === "high"
+        ? "status-high"
+        : cameraAnalysis?.severity === "medium"
+            ? "status-medium"
+            : "status-low";
+
+    const yolo = yoloResult;
+    const cameraRecordSummary = latestCameraRecord
+        ? `Latest saved record: ${latestCameraRecord.recordType ?? "camera"}`
+        : "Live feed connected. No saved camera records yet.";
 
     return (
         <div className={`app-shell-fixed ${sidebarOpen ? "sidebar-expanded" : "sidebar-collapsed"}`}>
-            <Sidebar
-                isOpen={sidebarOpen}
-                onToggle={() => setSidebarOpen((prev) => !prev)}
-            />
+            <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen((prev) => !prev)} />
 
             <div className="content-shell">
                 <main className="dashboard-content-scroll">
@@ -186,12 +498,8 @@ export default function LabDashboardPage() {
 
                                 <div className="dashboard-actions">
                                     <div className="notification-wrapper">
-                                        <button
-                                            type="button"
-                                            className="notification-btn"
-                                            onClick={() => setNotificationOpen((prev) => !prev)}
-                                            aria-label="View anomaly alerts"
-                                        >
+                                        <button type="button" className="notification-btn"
+                                            onClick={() => setNotificationOpen((prev) => !prev)} aria-label="View anomaly alerts">
                                             <Bell size={18} />
                                             <span className="notification-dot">{notifications.length}</span>
                                         </button>
@@ -225,9 +533,7 @@ export default function LabDashboardPage() {
                                                     </div>
                                                 )}
 
-                                                <button type="button" className="notification-view-all">
-                                                    View all anomalies
-                                                </button>
+                                                <button type="button" className="notification-view-all">View all anomalies</button>
                                             </div>
                                         )}
                                     </div>
@@ -238,53 +544,41 @@ export default function LabDashboardPage() {
 
                             <div className="weather-card">
                                 <div className="weather-main">
-                                    <div className="weather-icon">
-                                        <CloudRain size={26} />
-                                    </div>
-
+                                    <div className="weather-icon"><CloudRain size={26} /></div>
                                     <div>
-                                        <p className="weather-label">Current Weather Input</p>
-                                        <h2>Awaiting weather API</h2>
-                                        <span>Last refreshed {now}</span>
+                                        <p className="weather-label">Current Weather — {weather?.location ?? "Shah Alam"}</p>
+                                        <h2>
+                                            {weather?.weatherCondition ?? (weatherError || "Waiting for weather data")}
+                                            {weather?.temperature != null && ` · ${weather.temperature.toFixed(1)} °C`}
+                                        </h2>
+                                        <span>
+                                            {weather
+                                                ? `${weather.source ?? "AccuWeather"} · Last updated ${weather.recordedAt ?? weather.providerRecordedAt ?? now}`
+                                                : weatherError || `Last refreshed ${now}`}
+                                        </span>
                                     </div>
                                 </div>
 
                                 <div className="weather-stats">
-                                    <div>
-                                        <Droplets size={18} />
-                                        <span>Rainfall</span>
-                                        <strong>-- mm</strong>
-                                    </div>
-
-                                    <div>
-                                        <Wind size={18} />
-                                        <span>Wind</span>
-                                        <strong>-- km/h</strong>
-                                    </div>
-
-                                    <div>
-                                        <ThermometerSun size={18} />
-                                        <span>Humidity</span>
-                                        <strong>--%</strong>
-                                    </div>
+                                    <div><Droplets size={18} /><span>Rainfall</span><strong>{formatWeatherRainfall(weather?.rainfallAmount)}</strong></div>
+                                    <div><Wind size={18} /><span>Wind</span><strong>{formatWeatherWind(weather?.windSpeed)}</strong></div>
+                                    <div><ThermometerSun size={18} /><span>Humidity</span><strong>{formatWeatherValue(weather?.humidity, "%")}</strong></div>
                                 </div>
                             </div>
 
                             <div className="stats-grid">
-                                {stats.map((item) => (
-                                    <StatCard key={item.title} {...item} />
-                                ))}
+                                {stats.map((item) => <StatCard key={item.title} {...item} />)}
                             </div>
 
                             <div className="dashboard-grid two-columns">
                                 <section className="lab-card">
                                     <div className="section-header">
                                         <div>
-                                            <h2>Rainfall Trend</h2>
-                                            <p>Prepared for weather or local rainfall input</p>
+                                            <h2>7-Day Rainfall Forecast</h2>
+                                            <p>Predicted rainfall for the next 7 days.</p>
                                         </div>
                                     </div>
-                                    <MiniBarChart data={rainfallData} />
+                                    <DashboardRainfallChart data={rainfallSeriesData} />
                                 </section>
 
                                 <section className="lab-card">
@@ -318,9 +612,7 @@ export default function LabDashboardPage() {
                                                 <div key={item.id} className="anomaly-item">
                                                     <div className="anomaly-top">
                                                         <h3>{item.title}</h3>
-                                                        <span className={`severity-badge ${getSeverityClass(item.severity)}`}>
-                                                            {item.severity}
-                                                        </span>
+                                                        <span className={`severity-badge ${getSeverityClass(item.severity)}`}>{item.severity}</span>
                                                     </div>
                                                     <p>{item.message}</p>
                                                     <span className="anomaly-time">{item.time}</span>
@@ -343,7 +635,77 @@ export default function LabDashboardPage() {
                                             frameClassName="dashboard-camera-frame"
                                             imageClassName="image-preview"
                                             overlayLabel="Live Feed"
+                                            sourceLabel="Raspberry Pi camera ML latest frame"
+                                            srcUrl={getLatestFrameUrl()}
+                                            refreshMs={5000}
                                         />
+
+                                        {/* Basic Camera ML status */}
+                                        <div className="dashboard-camera-ml-status">
+                                            <div className="dashboard-camera-ml-row">
+                                                <span>Camera ML</span>
+                                                <strong className={cameraMlOnline ? "connected" : "unavailable"}>
+                                                    {cameraMlLoading ? "Checking" : cameraMlOnline ? "Saved" : "No saved analysis"}
+                                                </strong>
+                                            </div>
+
+                                            {cameraMlError ? (
+                                                <p>Camera records unavailable.</p>
+                                            ) : (
+                                                <>
+                                                    <div className="dashboard-camera-ml-row">
+                                                        <span>Last analysis</span>
+                                                        <strong>{cameraAnalysis?.createdAt ?? "--"}</strong>
+                                                    </div>
+                                                    <div className="dashboard-camera-ml-row">
+                                                        <span>Severity</span>
+                                                        <strong className={`status-pill ${cameraMlSeverityClass}`}>
+                                                            {cameraAnalysis?.severity ?? "pending"}
+                                                        </strong>
+                                                    </div>
+                                                    <p>
+                                                        {cameraAnalysis?.aiRecommendation
+                                                            ?? cameraRecordSummary}
+                                                    </p>
+                                                </>
+                                            )}
+
+                                            {/* Compact YOLO status — does not affect Camera ML state */}
+                                            <div className="dashboard-camera-ml-row" style={{ marginTop: "10px", paddingTop: "10px", borderTop: "1px solid var(--border)" }}>
+                                                <span>YOLO Detection</span>
+                                                <strong className={yolo ? "connected" : "unavailable"}>
+                                                    {yoloLoading ? "Running" : yolo ? "Completed" : yoloError ? "Unavailable" : "Not run"}
+                                                </strong>
+                                            </div>
+
+                                            {yolo ? (
+                                                <>
+                                                    <div className="dashboard-camera-ml-row">
+                                                        <span>Model</span>
+                                                        <strong>{yolo.yoloModel ?? "--"}</strong>
+                                                    </div>
+                                                    <div className="dashboard-camera-ml-row">
+                                                        <span>Visual Status</span>
+                                                        <strong>{formatReadableStatus(yolo.visualStatus)}</strong>
+                                                    </div>
+                                                    <div className="dashboard-camera-ml-row">
+                                                        <span>Detections</span>
+                                                        <strong>{yolo.detectionCount ?? "--"}</strong>
+                                                    </div>
+                                                    <div className="dashboard-camera-ml-row">
+                                                        <span>Severity</span>
+                                                        <strong className={`status-pill status-${yolo.severity === "high" ? "high" : yolo.severity === "medium" ? "medium" : "low"}`}>
+                                                            {yolo.severity}
+                                                        </strong>
+                                                    </div>
+                                                    <p style={{ fontSize: "12px", marginTop: "4px" }}>{yolo.aiRecommendation}</p>
+                                                </>
+                                            ) : (
+                                                <p style={{ fontSize: "12px", color: "var(--muted)" }}>
+                                                    {yoloError ? "Live feed connected. YOLO unavailable." : "Live feed connected. No saved YOLO record yet."}
+                                                </p>
+                                            )}
+                                        </div>
                                     </div>
                                 </section>
                             </div>
@@ -354,4 +716,3 @@ export default function LabDashboardPage() {
         </div>
     );
 }
-

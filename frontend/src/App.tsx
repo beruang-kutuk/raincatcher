@@ -25,8 +25,8 @@ import {
 } from "./theme/theme";
 
 const labRoles: UserRole[] = ["LAB_ASSISTANT"];
-const adminRoles: UserRole[] = ["SYSTEM_ADMIN"];
-const allRoles: UserRole[] = ["LAB_ASSISTANT", "SYSTEM_ADMIN"];
+const adminRoles: UserRole[] = ["SUPER_ADMIN"];
+const allRoles: UserRole[] = ["LAB_ASSISTANT", "SUPER_ADMIN"];
 const publicAuthRoutes = ["/login", "/signup", "/forgot-password"];
 
 function RoleRedirect() {

@@ -1,0 +1,1 @@
+"""Weekly harvest forecast module."""

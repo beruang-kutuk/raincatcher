@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useMemo, useState, type FormEvent } from "react";
 import {
     Check,
     Eye,
@@ -14,7 +14,6 @@ import Sidebar from "../../../components/layout/Sidebar";
 import AdminTopbar from "../../../components/layout/AdminTopbar";
 import {
     getPermissionLabel,
-    initialManagedUsers,
     permissionDefinitions,
     roleLabels,
     rolePolicies,
@@ -22,6 +21,13 @@ import {
     type ManagedUser,
     type UserAccessStatus,
 } from "../../../services/adminData";
+import {
+    createAdminUser,
+    getAdminUsers,
+    updateAdminUser,
+    updateAdminUserStatus,
+    type AdminUserRecord,
+} from "../../../services/adminApi";
 
 type SelectedUserState = {
     id: number;
@@ -33,14 +39,14 @@ type NewUserForm = {
     email: string;
     phone: string;
     role: Exclude<ManagedRole, "SUPER_ADMIN">;
+    password: string;
+    confirmPassword: string;
 };
 
 type EditableUserField = "name" | "email" | "phone" | "role" | "status";
 
 const assignableRoles: Array<Exclude<ManagedRole, "SUPER_ADMIN">> = [
     "LAB_ASSISTANT",
-    "MAINTENANCE",
-    "VIEWER",
 ];
 
 function getStatusClass(status: UserAccessStatus | "Active" | "Planned") {
@@ -49,13 +55,36 @@ function getStatusClass(status: UserAccessStatus | "Active" | "Planned") {
     return "admin-status-normal";
 }
 
-function getNextId(users: ManagedUser[]) {
-    return Math.max(...users.map((user) => user.id), 0) + 1;
+function toManagedUser(user: AdminUserRecord): ManagedUser {
+    return {
+        id: user.id,
+        name: user.displayName || user.username || user.email || "Raincatcher user",
+        email: user.email || user.username || "No email",
+        phone: user.phone || "Not provided",
+        role: user.role === "SUPER_ADMIN" ? "SUPER_ADMIN" : "LAB_ASSISTANT",
+        status:
+            user.status === "Suspended" || user.status === "Pending"
+                ? user.status
+                : "Active",
+        lastLogin: "Backend account",
+    };
+}
+
+function toAdminUserRecord(user: ManagedUser): Partial<AdminUserRecord> {
+    return {
+        username: user.email,
+        email: user.email,
+        displayName: user.name,
+        phone: user.phone,
+        role: user.role,
+        status: user.status,
+    };
 }
 
 export default function AccessControlPage() {
     const [sidebarOpen, setSidebarOpen] = useState(true);
-    const [users, setUsers] = useState<ManagedUser[]>(initialManagedUsers);
+    const [users, setUsers] = useState<ManagedUser[]>([]);
+    const [backendStatus, setBackendStatus] = useState("");
     const [selectedUser, setSelectedUser] = useState<SelectedUserState>(null);
     const [selectedRole, setSelectedRole] = useState(rolePolicies[0]);
     const [newUser, setNewUser] = useState<NewUserForm>({
@@ -63,6 +92,8 @@ export default function AccessControlPage() {
         email: "",
         phone: "",
         role: "LAB_ASSISTANT",
+        password: "",
+        confirmPassword: "",
     });
 
     const managedUsers = useMemo(
@@ -72,7 +103,35 @@ export default function AccessControlPage() {
     const activeUsers = managedUsers.filter((user) => user.status === "Active").length;
     const suspendedUsers = managedUsers.filter((user) => user.status === "Suspended").length;
 
+    useEffect(() => {
+        let active = true;
+
+        async function loadUsers() {
+            try {
+                const backendUsers = await getAdminUsers();
+                if (!active) return;
+                setUsers(backendUsers.map(toManagedUser));
+                setBackendStatus("");
+            } catch {
+                if (active) setBackendStatus("Backend users unavailable. Sign in as Super Admin and check the Raspberry Pi backend.");
+            }
+        }
+
+        void loadUsers();
+        return () => { active = false; };
+    }, []);
+
+    async function persistUser(user: ManagedUser) {
+        try {
+            await updateAdminUser(user.id, toAdminUserRecord(user));
+            setBackendStatus("");
+        } catch {
+            setBackendStatus("Unable to save user changes to backend.");
+        }
+    }
+
     function updateUser(id: number, field: EditableUserField, value: string) {
+        let changedUser: ManagedUser | null = null;
         setUsers((prev) =>
             prev.map((user) => {
                 if (user.id !== id) return user;
@@ -80,54 +139,81 @@ export default function AccessControlPage() {
                     return user;
                 }
 
-                return {
+                changedUser = {
                     ...user,
                     [field]: value,
                 } as ManagedUser;
+                return changedUser;
             }),
         );
+        if (changedUser && (field === "role" || field === "status")) {
+            void persistUser(changedUser);
+        }
     }
 
     function toggleUserSuspension(id: number) {
-        setUsers((prev) =>
-            prev.map((user) => {
-                if (user.id !== id || user.role === "SUPER_ADMIN") return user;
+        const existingUser = users.find((user) => user.id === id && user.role !== "SUPER_ADMIN");
+        if (!existingUser) return;
 
-                return {
-                    ...user,
-                    status: user.status === "Suspended" ? "Active" : "Suspended",
-                };
-            }),
+        const changedUser: ManagedUser = {
+            ...existingUser,
+            status: existingUser.status === "Suspended" ? "Active" : "Suspended",
+        };
+
+        setUsers((prev) =>
+            prev.map((user) => user.id === id && user.role !== "SUPER_ADMIN" ? changedUser : user),
         );
+        void updateAdminUserStatus(changedUser.id, changedUser.status)
+            .then(() => setBackendStatus(""))
+            .catch(() => setBackendStatus("Unable to update user status in backend."));
     }
 
-    function addUser(event: FormEvent) {
+    async function addUser(event: FormEvent) {
         event.preventDefault();
 
         const name = newUser.name.trim();
         const email = newUser.email.trim();
         const phone = newUser.phone.trim();
+        const password = newUser.password;
+        const confirmPassword = newUser.confirmPassword;
 
-        if (!name || !email) return;
+        if (!name || !email) {
+            setBackendStatus("Name and email are required.");
+            return;
+        }
+        if (password.length < 8) {
+            setBackendStatus("Password must be at least 8 characters.");
+            return;
+        }
+        if (password !== confirmPassword) {
+            setBackendStatus("Password and confirm password must match.");
+            return;
+        }
 
-        setUsers((prev) => [
-            ...prev,
-            {
-                id: getNextId(prev),
-                name,
+        try {
+            await createAdminUser({
+                username: email,
                 email,
+                displayName: name,
                 phone: phone || "Not provided",
                 role: newUser.role,
                 status: "Active",
-                lastLogin: "Not signed in yet",
-            },
-        ]);
+                password,
+            });
+            const backendUsers = await getAdminUsers();
+            setUsers(backendUsers.map(toManagedUser));
+            setBackendStatus("");
+        } catch {
+            setBackendStatus("Unable to create backend user. Check the Super Admin session and Raspberry Pi backend.");
+        }
 
         setNewUser({
             name: "",
             email: "",
             phone: "",
             role: "LAB_ASSISTANT",
+            password: "",
+            confirmPassword: "",
         });
     }
 
@@ -149,6 +235,10 @@ export default function AccessControlPage() {
                                 <button className="admin-secondary-btn" type="button">Frontend Policy</button>
                             }
                         />
+
+                        {backendStatus && (
+                            <div className="admin-inline-alert">{backendStatus}</div>
+                        )}
 
                         <div className="admin-summary-grid">
                             <article className="admin-summary-card">
@@ -211,7 +301,7 @@ export default function AccessControlPage() {
                                 <p className="admin-summary-label">Role Policies</p>
                                 <h3 className="admin-summary-value">{rolePolicies.length}</h3>
                                 <p className="admin-summary-meta">
-                                    Super Admin, Lab Assistant, Maintenance, and Viewer are defined.
+                                    Super Admin and Lab Assistant are defined.
                                 </p>
                             </article>
                         </div>
@@ -321,6 +411,7 @@ export default function AccessControlPage() {
                                                                                     onChange={(event) =>
                                                                                         updateUser(row.id, "name", event.target.value)
                                                                                     }
+                                                                                    onBlur={() => void persistUser(row)}
                                                                                 />
                                                                             </label>
 
@@ -332,6 +423,7 @@ export default function AccessControlPage() {
                                                                                     onChange={(event) =>
                                                                                         updateUser(row.id, "email", event.target.value)
                                                                                     }
+                                                                                    onBlur={() => void persistUser(row)}
                                                                                 />
                                                                             </label>
 
@@ -342,6 +434,7 @@ export default function AccessControlPage() {
                                                                                     onChange={(event) =>
                                                                                         updateUser(row.id, "phone", event.target.value)
                                                                                     }
+                                                                                    onBlur={() => void persistUser(row)}
                                                                                 />
                                                                             </label>
 
@@ -414,7 +507,7 @@ export default function AccessControlPage() {
                                 <div className="admin-panel-header">
                                     <div>
                                         <h2>Add User</h2>
-                                        <p>Create a user account structure for later backend integration.</p>
+                                        <p>Create a user account in the backend RBAC foundation.</p>
                                     </div>
                                     <UserCog size={20} />
                                 </div>
@@ -482,6 +575,38 @@ export default function AccessControlPage() {
                                         </select>
                                     </label>
 
+                                    <label className="admin-field">
+                                        Password
+                                        <input
+                                            type="password"
+                                            value={newUser.password}
+                                            onChange={(event) =>
+                                                setNewUser((prev) => ({
+                                                    ...prev,
+                                                    password: event.target.value,
+                                                }))
+                                            }
+                                            placeholder="Minimum 8 characters"
+                                            autoComplete="new-password"
+                                        />
+                                    </label>
+
+                                    <label className="admin-field">
+                                        Confirm Password
+                                        <input
+                                            type="password"
+                                            value={newUser.confirmPassword}
+                                            onChange={(event) =>
+                                                setNewUser((prev) => ({
+                                                    ...prev,
+                                                    confirmPassword: event.target.value,
+                                                }))
+                                            }
+                                            placeholder="Re-enter password"
+                                            autoComplete="new-password"
+                                        />
+                                    </label>
+
                                     <button className="admin-primary-btn" type="submit">
                                         Add User
                                     </button>
@@ -538,7 +663,7 @@ export default function AccessControlPage() {
                                 <div className="admin-panel-header">
                                     <div>
                                         <h2>Permission Matrix</h2>
-                                        <p>Frontend-only permission map prepared for backend RBAC later.</p>
+                                        <p>Role policy map for Super Admin and Lab Assistant access.</p>
                                     </div>
                                     <UserCog size={20} />
                                 </div>

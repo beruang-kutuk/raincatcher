@@ -14,6 +14,11 @@
     flex-wrap: wrap;
 }
 
+.anomalies-topbar > div:first-child {
+    flex: 1 1 260px;
+    min-width: 0;
+}
+
 .anomalies-page-title {
     margin: 0 0 8px;
     font-size: 36px;
@@ -24,8 +29,17 @@
 .anomalies-topbar-right {
     display: flex;
     align-items: center;
+    justify-content: flex-end;
     gap: 12px;
     flex-wrap: wrap;
+    flex: 0 1 auto;
+    max-width: 100%;
+    margin-left: auto;
+}
+
+.anomalies-topbar-right .dashboard-actions {
+    margin-left: auto;
+    flex-shrink: 0;
 }
 
 .anomalies-filter-btn {
@@ -37,6 +51,15 @@
     font-weight: 600;
     color: var(--text);
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.anomalies-filter-btn:disabled,
+.anomalies-clear-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
 }
 
 /* SUMMARY */
@@ -95,6 +118,155 @@
 
 .anomalies-filters-panel {
     margin-bottom: 22px;
+}
+
+.anomalies-camera-ml-panel {
+    margin-bottom: 22px;
+}
+
+.anomalies-camera-ml-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.anomalies-camera-ml-top h2 {
+    margin: 0;
+    color: var(--text);
+    font-size: 18px;
+    font-weight: 800;
+}
+
+.anomalies-camera-ml-top p {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.anomalies-camera-ml-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.anomalies-camera-ml-grid div {
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: #fafbff;
+    padding: 12px;
+}
+
+.anomalies-camera-ml-grid span {
+    display: block;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.anomalies-camera-ml-grid strong {
+    display: block;
+    margin-top: 6px;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 800;
+    overflow-wrap: anywhere;
+    line-height: 1.25;
+}
+
+.anomalies-camera-ml-grid .anomaly-table-badge {
+    width: fit-content;
+    max-width: 100%;
+    min-width: 80px;
+    min-height: 28px;
+    height: auto;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    margin-top: 6px;
+    line-height: 1.2;
+    white-space: normal;
+    text-align: center;
+    overflow-wrap: anywhere;
+}
+
+.anomalies-camera-ml-offline {
+    border: 1px solid rgba(220, 38, 38, 0.18);
+    border-radius: 14px;
+    background: #fef2f2;
+    color: #991b1b;
+    padding: 14px;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.anomalies-backend-error {
+    margin: -8px 0 22px;
+}
+
+.anomalies-camera-ml-recommendation {
+    margin-top: 14px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+/* YOLO detection classes */
+.yolo-detection-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.yolo-detection-pill {
+    display: inline-flex;
+    align-items: center;
+    min-height: 26px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--purple) 10%, transparent);
+    color: var(--purple);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.yolo-offline-message {
+    color: #991b1b;
+    font-size: 13px;
+}
+
+.yolo-result-meta {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+/* Telemetry status pill */
+.telemetry-status-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    background: rgba(22, 163, 74, 0.12);
+    color: #16a34a;
+}
+
+.anomalies-camera-ml-recommendation svg {
+    color: var(--purple);
+    flex-shrink: 0;
+    margin-top: 2px;
 }
 
 /* FILTERS */
@@ -251,16 +423,16 @@
 }
 
 .anomalies-icon-btn:hover {
-    border-color: rgba(109, 76, 255, 0.35);
+    border-color: color-mix(in srgb, var(--purple) 35%, transparent);
     color: var(--purple);
 }
 
 .anomalies-sparkle-btn {
     width: 38px;
     height: 36px;
-    border: 1px solid rgba(109, 76, 255, 0.24);
+    border: 1px solid color-mix(in srgb, var(--purple) 24%, transparent);
     border-radius: 10px;
-    background: rgba(109, 76, 255, 0.08);
+    background: color-mix(in srgb, var(--purple) 8%, transparent);
     color: var(--purple);
     font-size: 18px;
     font-weight: 800;
@@ -416,7 +588,7 @@
     margin-bottom: 20px;
     padding: 14px 16px;
     border-radius: 16px;
-    background: rgba(109, 76, 255, 0.08);
+    background: color-mix(in srgb, var(--purple) 8%, transparent);
     color: var(--muted);
     line-height: 1.5;
 }
@@ -471,7 +643,7 @@
 }
 
 .anomalies-ai-message.assistant {
-    background: rgba(109, 76, 255, 0.08);
+    background: color-mix(in srgb, var(--purple) 8%, transparent);
     color: var(--text);
 }
 
@@ -524,6 +696,10 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
+    .anomalies-camera-ml-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .anomalies-filters-grid {
         grid-template-columns: 1fr 1fr;
     }
@@ -540,6 +716,10 @@
     }
 
     .anomalies-summary-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .anomalies-camera-ml-grid {
         grid-template-columns: 1fr;
     }
 
@@ -732,7 +912,9 @@ body.dark-mode .anomalies-table td,
 body.dark-mode .anomalies-popup-header h2,
 body.dark-mode .anomalies-popup-section h3,
 body.dark-mode .anomalies-resolved-top h3,
-body.dark-mode .anomalies-ai-message strong {
+body.dark-mode .anomalies-ai-message strong,
+body.dark-mode .anomalies-camera-ml-top h2,
+body.dark-mode .anomalies-camera-ml-grid strong {
     color: var(--text);
 }
 
@@ -743,8 +925,16 @@ body.dark-mode .anomalies-resolved-content p,
 body.dark-mode .anomalies-resolved-meta,
 body.dark-mode .anomalies-table-footer p,
 body.dark-mode .anomalies-summary-meta,
-body.dark-mode .anomalies-ai-message.case {
+body.dark-mode .anomalies-ai-message.case,
+body.dark-mode .anomalies-camera-ml-top p,
+body.dark-mode .anomalies-camera-ml-grid span {
     color: var(--muted);
+}
+
+/* Camera ML / YOLO metric grid boxes in dark mode */
+body.dark-mode .anomalies-camera-ml-grid div {
+    background: var(--card-soft) !important;
+    border-color: var(--border) !important;
 }
 
 body.dark-mode .anomalies-popup-grid div,
@@ -783,7 +973,7 @@ body.dark-mode .anomalies-resolved-icon-btn:hover,
 body.dark-mode .anomalies-icon-btn:hover,
 body.dark-mode .anomalies-clear-btn:hover,
 body.dark-mode .anomalies-page-btn:hover {
-    background: rgba(109, 76, 255, 0.16);
+    background: color-mix(in srgb, var(--purple) 16%, transparent);
 }
 
 body.dark-mode .anomalies-resolved-icon-btn span {
@@ -792,6 +982,68 @@ body.dark-mode .anomalies-resolved-icon-btn span {
 
 body.dark-mode .anomalies-popup-note,
 body.dark-mode .anomalies-ai-message.assistant {
-    background: rgba(109, 76, 255, 0.16);
+    background: color-mix(in srgb, var(--purple) 16%, transparent);
+    color: var(--text);
+}
+
+/* Form fields in dark mode */
+body.dark-mode .anomalies-form-field input,
+body.dark-mode .anomalies-form-field select,
+body.dark-mode .anomalies-form-field textarea {
+    background: var(--input) !important;
+    color: var(--text) !important;
+    border-color: var(--border) !important;
+}
+
+body.dark-mode .anomalies-form-field input::placeholder,
+body.dark-mode .anomalies-form-field textarea::placeholder {
+    color: var(--muted) !important;
+}
+
+/* Severity badge colors in dark mode */
+body.dark-mode .anomaly-badge-high {
+    background: var(--red-soft);
+    color: var(--red-text);
+}
+
+body.dark-mode .anomaly-badge-medium {
+    background: var(--yellow-soft);
+    color: var(--yellow-text);
+}
+
+body.dark-mode .anomaly-badge-low {
+    background: var(--green-soft);
+    color: var(--green-text);
+}
+
+/* Status badge colors in dark mode */
+body.dark-mode .anomaly-status-unresolved {
+    background: var(--red-soft);
+    color: var(--red-text);
+}
+
+body.dark-mode .anomaly-status-investigating {
+    background: rgba(37, 99, 235, 0.20);
+    color: #93c5fd;
+}
+
+body.dark-mode .anomaly-status-resolved {
+    background: var(--green-soft);
+    color: var(--green-text);
+}
+
+/* Camera offline / YOLO offline messages in dark mode */
+body.dark-mode .anomalies-camera-ml-offline {
+    background: rgba(220, 38, 38, 0.14);
+    border-color: rgba(220, 38, 38, 0.28);
+    color: var(--red-text);
+}
+
+body.dark-mode .yolo-offline-message {
+    color: var(--red-text);
+}
+
+/* Camera ML recommendation text in dark mode */
+body.dark-mode .anomalies-camera-ml-recommendation {
     color: var(--text);
 }

@@ -60,6 +60,23 @@
     color: var(--text);
 }
 
+.admin-inline-alert {
+    margin: -12px 0 22px;
+    padding: 12px 14px;
+    border: 1px solid rgba(217, 119, 6, 0.22);
+    border-radius: 12px;
+    background: rgba(254, 243, 199, 0.72);
+    color: #92400e;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.admin-primary-btn:disabled,
+.admin-secondary-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.62;
+}
+
 .admin-summary-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -137,7 +154,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 82px;
+    min-width: 76px;
+    max-width: 120px;
     height: 30px;
     padding: 0 12px;
     border-radius: 999px;
@@ -145,6 +163,7 @@
     font-weight: 800;
     text-transform: capitalize;
     white-space: nowrap;
+    flex: 0 0 auto;
 }
 
 .admin-status-normal {
@@ -183,6 +202,11 @@
 
 .admin-panel-header {
     margin-bottom: 18px;
+    flex-wrap: wrap;
+}
+
+.admin-panel-header > div {
+    min-width: 0;
 }
 
 .admin-panel-header h2,
@@ -305,6 +329,20 @@
     padding: 16px;
 }
 
+.admin-threshold-card h3 {
+    margin: 0 0 4px;
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 800;
+}
+
+.admin-threshold-card p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.45;
+}
+
 .admin-threshold-card-header {
     margin-bottom: 16px;
 }
@@ -318,7 +356,7 @@
     width: 40px;
     height: 40px;
     border-radius: 14px;
-    background: rgba(109, 76, 255, 0.12);
+    background: color-mix(in srgb, var(--purple) 12%, transparent);
     color: var(--purple);
     display: inline-flex;
     align-items: center;
@@ -349,7 +387,10 @@
 }
 
 .admin-field input,
-.admin-field select {
+.admin-field select,
+.admin-field textarea,
+.admin-create-row input,
+.admin-threshold-input-row input {
     width: 100%;
     height: 42px;
     border: 1px solid var(--border);
@@ -361,10 +402,56 @@
     outline: none;
 }
 
+.admin-field textarea {
+    min-height: 78px;
+    resize: vertical;
+    padding: 10px 12px;
+    line-height: 1.45;
+}
+
 .admin-field input:focus,
-.admin-field select:focus {
-    border-color: rgba(109, 76, 255, 0.45);
-    box-shadow: 0 0 0 4px rgba(109, 76, 255, 0.10);
+.admin-field select:focus,
+.admin-field textarea:focus,
+.admin-create-row input:focus,
+.admin-threshold-input-row input:focus {
+    border-color: color-mix(in srgb, var(--purple) 45%, transparent);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--purple) 12%, transparent);
+}
+
+.admin-threshold-input-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+}
+
+.admin-threshold-input-row span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 900;
+}
+
+.admin-form-actions,
+.admin-create-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+}
+
+.admin-create-row {
+    margin: 0 0 16px;
+}
+
+.admin-create-row input {
+    max-width: 360px;
+}
+
+.admin-template-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
 }
 
 .admin-mode-grid {
@@ -399,8 +486,8 @@
 }
 
 .admin-mode-card.active {
-    border-color: rgba(109, 76, 255, 0.50);
-    background: rgba(109, 76, 255, 0.12);
+    border-color: color-mix(in srgb, var(--purple) 50%, transparent);
+    background: color-mix(in srgb, var(--purple) 12%, transparent);
 }
 
 .admin-toggle-row {
@@ -602,7 +689,7 @@
     align-items: center;
     min-height: 34px;
     border-radius: 999px;
-    background: rgba(109, 76, 255, 0.12);
+    background: color-mix(in srgb, var(--purple) 12%, transparent);
     color: var(--purple);
     padding: 0 12px;
     font-size: 12px;
@@ -623,7 +710,7 @@
 }
 
 .admin-text-btn:hover:not(:disabled) {
-    border-color: rgba(109, 76, 255, 0.40);
+    border-color: color-mix(in srgb, var(--purple) 40%, transparent);
     color: var(--purple);
 }
 
@@ -647,7 +734,7 @@
 }
 
 .admin-icon-btn:hover:not(:disabled) {
-    border-color: rgba(109, 76, 255, 0.40);
+    border-color: color-mix(in srgb, var(--purple) 40%, transparent);
     color: var(--purple);
 }
 
@@ -681,7 +768,7 @@
 }
 
 .admin-role-tab.active {
-    border-color: rgba(109, 76, 255, 0.50);
+    border-color: color-mix(in srgb, var(--purple) 50%, transparent);
     background: linear-gradient(90deg, var(--purple), var(--purple2));
     color: #ffffff;
 }
@@ -814,13 +901,17 @@
 }
 
 .admin-control-link span {
+    color: var(--purple);
+}
+
+.admin-control-link small {
     color: var(--muted);
     font-size: 13px;
     line-height: 1.45;
 }
 
 .admin-control-link:hover {
-    border-color: rgba(109, 76, 255, 0.45);
+    border-color: color-mix(in srgb, var(--purple) 45%, transparent);
 }
 
 .admin-role-badge {
@@ -868,7 +959,8 @@
     border: 1px solid var(--border);
     border-radius: 16px;
     background: var(--card-soft);
-    padding: 16px;
+    padding: 18px;
+    min-width: 0;
 }
 
 .admin-permission-card h3,
@@ -1007,14 +1099,26 @@
     gap: 12px;
     align-items: flex-start;
     margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.admin-health-card-top > div {
+    flex: 1 1 150px;
+    min-width: 0;
+}
+
+.admin-health-card h3 {
+    line-height: 1.25;
+    overflow-wrap: anywhere;
 }
 
 .admin-health-card strong {
     display: block;
     color: var(--text);
-    font-size: 26px;
-    line-height: 1;
+    font-size: 23px;
+    line-height: 1.15;
     font-weight: 800;
+    overflow-wrap: anywhere;
 }
 
 .admin-meter {

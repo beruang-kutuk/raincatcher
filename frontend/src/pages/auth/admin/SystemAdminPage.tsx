@@ -1,39 +1,66 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
-    Activity,
     AlertTriangle,
-    Camera,
     ClipboardList,
     CloudRain,
     Cpu,
-    Eye,
     Gauge,
+    HeartPulse,
     History,
     RefreshCcw,
-    Settings,
     ShieldCheck,
     SlidersHorizontal,
+    Trash2,
     Wrench,
-    X,
 } from "lucide-react";
 import "../../../styles/dashboard.css";
 import "../../../styles/admin.css";
 import Sidebar from "../../../components/layout/Sidebar";
 import AdminTopbar from "../../../components/layout/AdminTopbar";
-import { RPI_CAMERA_STREAM_URL } from "../../../config/camera";
 import {
-    RAINWATER_TANK_NAME,
-    auditLogs,
-    deviceRows,
-    diagnosticCards,
-    forecastSettings,
-    reportTemplateSections,
-    systemHealthMetrics,
-    thresholdSettings,
-    type AdminStatus,
-    type DeviceStatus,
-} from "../../../services/adminData";
+    getAdminDevices,
+    markAdminDeviceMaintenance,
+    refreshAdminDevice,
+    restartAdminDeviceService,
+    updateAdminDeviceStatus,
+    type AdminDevice,
+} from "../../../services/adminDeviceApi";
+import {
+    getAdminSystemHealth,
+    runAdminSystemHealthCheck,
+    type AdminSystemHealthSummary,
+    type AdminSystemService,
+} from "../../../services/adminSystemHealthApi";
+import {
+    getAdminThresholds,
+    resetAdminThresholds,
+    saveAdminThresholds,
+    type AdminThreshold,
+} from "../../../services/adminThresholdApi";
+import {
+    getAdminForecastSettings,
+    resetAdminForecastSettings,
+    saveAdminForecastSettings,
+    type AdminForecastSetting,
+} from "../../../services/adminForecastSettingsApi";
+import {
+    createAdminReportTemplate,
+    deleteAdminReportTemplate,
+    getAdminReportTemplates,
+    updateAdminReportTemplate,
+    type AdminReportTemplate,
+} from "../../../services/adminReportTemplateApi";
+import {
+    getAdminDiagnostics,
+    runAdminDiagnostics,
+    type AdminDiagnostic,
+} from "../../../services/adminDiagnosticsApi";
+import {
+    clearAdminAuditLogs,
+    getAdminAuditLogs,
+    type AdminAuditLog,
+} from "../../../services/adminAuditLogApi";
 
 type AdminSection =
     | "overview"
@@ -50,92 +77,36 @@ const sectionNav: Array<{
     label: string;
     path: string;
     description: string;
+    icon: React.ReactNode;
 }> = [
-    {
-        id: "overview",
-        label: "System Overview",
-        path: "/admin/system",
-        description: "Summary of system controls and current integration readiness.",
-    },
-    {
-        id: "devices",
-        label: "Device Management",
-        path: "/admin/devices",
-        description: "Raspberry Pi, camera, ESP32, and sensor registry.",
-    },
-    {
-        id: "health",
-        label: "System Health",
-        path: "/admin/system-health",
-        description: "Gateway, storage, camera, API, and database health.",
-    },
-    {
-        id: "thresholds",
-        label: "Thresholds",
-        path: "/admin/thresholds",
-        description: "System-wide anomaly and warning limits.",
-    },
-    {
-        id: "forecast",
-        label: "Forecast Settings",
-        path: "/admin/forecast-settings",
-        description: "Default assumptions for forecasting modules.",
-    },
-    {
-        id: "reports",
-        label: "Report Templates",
-        path: "/admin/report-templates",
-        description: "Default sections for generated reports.",
-    },
-    {
-        id: "diagnostics",
-        label: "Diagnostics",
-        path: "/admin/diagnostics",
-        description: "Troubleshooting checks and repair action placeholders.",
-    },
-    {
-        id: "audit",
-        label: "Audit Logs",
-        path: "/admin/audit-logs",
-        description: "Activity trail structure for user and system events.",
-    },
+    { id: "overview", label: "System Overview", path: "/admin/system", description: "Admin control areas and live backend readiness.", icon: <ShieldCheck size={20} /> },
+    { id: "devices", label: "Device Management", path: "/admin/devices", description: "Raspberry Pi, camera, ESP32, and sensor registry.", icon: <Cpu size={20} /> },
+    { id: "health", label: "System Health", path: "/admin/system-health", description: "Backend, database, camera, YOLO, weather, forecast, and reports.", icon: <HeartPulse size={20} /> },
+    { id: "thresholds", label: "Thresholds", path: "/admin/thresholds", description: "System-wide anomaly and warning limits.", icon: <Gauge size={20} /> },
+    { id: "forecast", label: "Forecast Settings", path: "/admin/forecast-settings", description: "Default assumptions for forecasting modules.", icon: <CloudRain size={20} /> },
+    { id: "reports", label: "Report Templates", path: "/admin/report-templates", description: "Reusable sections for generated reports.", icon: <ClipboardList size={20} /> },
+    { id: "diagnostics", label: "Diagnostics", path: "/admin/diagnostics", description: "Troubleshooting checks and backend status history.", icon: <Wrench size={20} /> },
+    { id: "audit", label: "Audit Logs", path: "/admin/audit-logs", description: "Activity trail for admin actions.", icon: <History size={20} /> },
 ];
 
+const statusOptions = ["Online", "Offline", "Pending", "Warning"];
+
 function getSectionFromPath(pathname: string): AdminSection {
-    const match = sectionNav.find((item) => item.path === pathname);
-    return match?.id ?? "overview";
+    return sectionNav.find((item) => item.path === pathname)?.id ?? "overview";
 }
 
-function getAdminStatusClass(status: AdminStatus) {
-    if (status === "critical") return "admin-status-critical";
-    if (status === "warning") return "admin-status-warning";
+function getAdminStatusClass(status: string) {
+    const lowered = status.toLowerCase();
+    if (lowered.includes("offline") || lowered.includes("critical") || lowered.includes("no_data")) return "admin-status-critical";
+    if (lowered.includes("warning") || lowered.includes("pending") || lowered.includes("stale") || lowered.includes("not_implemented") || lowered.includes("no_records")) return "admin-status-warning";
     return "admin-status-normal";
 }
 
-function getDeviceStatusClass(status: DeviceStatus) {
-    if (status === "Offline") return "admin-status-critical";
-    if (status === "Pending" || status === "Warning") return "admin-status-warning";
-    return "admin-status-normal";
+function StatusPill({ status }: { status: string }) {
+    return <span className={`admin-status-pill ${getAdminStatusClass(status)}`}>{status}</span>;
 }
 
-function StatusPill({ status }: { status: AdminStatus | DeviceStatus }) {
-    const className =
-        status === "Online" || status === "Offline" || status === "Pending" || status === "Warning"
-            ? getDeviceStatusClass(status)
-            : getAdminStatusClass(status);
-
-    return <span className={`admin-status-pill ${className}`}>{status}</span>;
-}
-
-function SectionHeader({
-    title,
-    description,
-    icon,
-}: {
-    title: string;
-    description: string;
-    icon: React.ReactNode;
-}) {
+function SectionHeader({ title, description, icon }: { title: string; description: string; icon: React.ReactNode }) {
     return (
         <div className="admin-panel-header">
             <div>
@@ -147,115 +118,145 @@ function SectionHeader({
     );
 }
 
+function toValueMap<T extends { value: string }>(items: T[], keyField: keyof T) {
+    return Object.fromEntries(items.map((item) => [String(item[keyField]), item.value]));
+}
+
 export default function SystemAdminPage() {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const location = useLocation();
     const navigate = useNavigate();
     const activeSection = getSectionFromPath(location.pathname);
     const activeMeta = sectionNav.find((item) => item.id === activeSection) ?? sectionNav[0];
-    const [thresholdValues, setThresholdValues] = useState(() =>
-        Object.fromEntries(thresholdSettings.map((setting) => [setting.id, setting.value])),
-    );
-    const [forecastValues, setForecastValues] = useState(() =>
-        Object.fromEntries(forecastSettings.map((setting) => [setting.id, setting.value])),
-    );
-    const [reportSections, setReportSections] = useState(reportTemplateSections);
-    const [diagnosticMessage, setDiagnosticMessage] = useState("Diagnostics ready. Actions are prepared for backend integration.");
-    const [saveMessage, setSaveMessage] = useState("");
-    const [viewDevice, setViewDevice] = useState<typeof deviceRows[0] | null>(null);
-    const [manageDevice, setManageDevice] = useState<typeof deviceRows[0] | null>(null);
-    const [manageStatus, setManageStatus] = useState("");
-    const [manageSensorTag, setManageSensorTag] = useState("");
-    const [manageActionMsg, setManageActionMsg] = useState("");
+
+    const [devices, setDevices] = useState<AdminDevice[]>([]);
+    const [health, setHealth] = useState<AdminSystemHealthSummary | null>(null);
+    const [services, setServices] = useState<AdminSystemService[]>([]);
+    const [thresholds, setThresholds] = useState<AdminThreshold[]>([]);
+    const [forecastSettings, setForecastSettings] = useState<AdminForecastSetting[]>([]);
+    const [reportTemplates, setReportTemplates] = useState<AdminReportTemplate[]>([]);
+    const [diagnostics, setDiagnostics] = useState<AdminDiagnostic[]>([]);
+    const [auditLogs, setAuditLogs] = useState<AdminAuditLog[]>([]);
+    const [thresholdDraft, setThresholdDraft] = useState<Record<string, string>>({});
+    const [forecastDraft, setForecastDraft] = useState<Record<string, string>>({});
+    const [deviceStatusDraft, setDeviceStatusDraft] = useState<Record<number, string>>({});
+    const [templateDraft, setTemplateDraft] = useState<Record<number, AdminReportTemplate>>({});
+    const [newTemplateName, setNewTemplateName] = useState("");
+    const [loading, setLoading] = useState(true);
+    const [actionLoading, setActionLoading] = useState("");
+    const [message, setMessage] = useState("");
+    const [error, setError] = useState("");
+
+    async function loadAdminData() {
+        setLoading(true);
+        setError("");
+        try {
+            const [
+                deviceRows,
+                healthSummary,
+                thresholdRows,
+                forecastRows,
+                templateRows,
+                diagnosticRows,
+                auditRows,
+            ] = await Promise.all([
+                getAdminDevices(),
+                getAdminSystemHealth(),
+                getAdminThresholds(),
+                getAdminForecastSettings(),
+                getAdminReportTemplates(),
+                getAdminDiagnostics(),
+                getAdminAuditLogs(),
+            ]);
+
+            setDevices(deviceRows);
+            setHealth(healthSummary);
+            setServices(healthSummary.services ?? []);
+            setThresholds(thresholdRows);
+            setForecastSettings(forecastRows);
+            setReportTemplates(templateRows);
+            setDiagnostics(diagnosticRows);
+            setAuditLogs(auditRows);
+            setThresholdDraft(toValueMap(thresholdRows, "thresholdKey"));
+            setForecastDraft(toValueMap(forecastRows, "settingKey"));
+            setDeviceStatusDraft(Object.fromEntries(deviceRows.map((device) => [device.id, device.status])));
+            setTemplateDraft(Object.fromEntries(templateRows.map((template) => [template.id, template])));
+        } catch (loadError) {
+            setError(loadError instanceof Error ? loadError.message : "Admin backend unavailable.");
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    useEffect(() => {
+        void loadAdminData();
+    }, []);
 
     const onlineDevices = useMemo(
-        () => deviceRows.filter((device) => device.status === "Online").length,
-        [],
+        () => devices.filter((device) => device.status === "Online").length,
+        [devices],
     );
-    const warningDevices = useMemo(
-        () => deviceRows.filter((device) => device.status === "Warning" || device.status === "Pending").length,
-        [],
+    const currentAlerts = useMemo(
+        () => [
+            health?.esp32Telemetry && health.esp32Telemetry !== "online" ? `ESP32 telemetry ${health.esp32Telemetry}` : "",
+            health?.yoloService === "not_implemented" ? "YOLO service check not implemented" : "",
+            diagnostics.some((item) => item.result === "Not implemented") ? "Some diagnostics return Not implemented" : "",
+        ].filter(Boolean),
+        [health, diagnostics],
     );
 
+    async function runAction(label: string, action: () => Promise<unknown>, after?: () => Promise<void> | void) {
+        setActionLoading(label);
+        setMessage("");
+        setError("");
+        try {
+            await action();
+            await after?.();
+            setMessage(`${label} completed.`);
+        } catch (actionError) {
+            setError(actionError instanceof Error ? actionError.message : `${label} failed.`);
+        } finally {
+            setActionLoading("");
+        }
+    }
+
     function renderOverview() {
+        const summaries = [
+            { label: "Online Devices", value: `${onlineDevices} / ${devices.length}`, meta: "Device records are stored in admin_devices.", icon: <Cpu size={22} />, status: onlineDevices > 0 ? "normal" : "warning" },
+            { label: "Threshold Rules", value: String(thresholds.length), meta: "Rules saved in admin_thresholds.", icon: <SlidersHorizontal size={22} />, status: thresholds.length > 0 ? "normal" : "warning" },
+            { label: "Forecast Defaults", value: String(forecastSettings.length), meta: "Defaults saved in admin_forecast_settings.", icon: <CloudRain size={22} />, status: forecastSettings.length > 0 ? "normal" : "warning" },
+            { label: "Audit Events", value: String(auditLogs.length), meta: "Admin actions create audit log entries.", icon: <History size={22} />, status: "normal" },
+        ];
+
         return (
             <>
                 <div className="admin-summary-grid">
-                    <article className="admin-summary-card">
-                        <div className="admin-summary-top">
-                            <div className="admin-summary-icon admin-status-normal">
-                                <Cpu size={22} />
+                    {summaries.map((item) => (
+                        <article key={item.label} className="admin-summary-card">
+                            <div className="admin-summary-top">
+                                <div className={`admin-summary-icon ${getAdminStatusClass(item.status)}`}>{item.icon}</div>
+                                <StatusPill status={item.status} />
                             </div>
-                            <span className="admin-status-pill admin-status-normal">devices</span>
-                        </div>
-                        <p className="admin-summary-label">Online Devices</p>
-                        <h3 className="admin-summary-value">{onlineDevices} / {deviceRows.length}</h3>
-                        <p className="admin-summary-meta">
-                            {warningDevices} devices need admin review or calibration.
-                        </p>
-                    </article>
-
-                    <article className="admin-summary-card">
-                        <div className="admin-summary-top">
-                            <div className="admin-summary-icon admin-status-warning">
-                                <SlidersHorizontal size={22} />
-                            </div>
-                            <span className="admin-status-pill admin-status-warning">pending</span>
-                        </div>
-                        <p className="admin-summary-label">Threshold Rules</p>
-                        <h3 className="admin-summary-value">{thresholdSettings.length}</h3>
-                        <p className="admin-summary-meta">
-                            Rules prepared for anomaly backend integration.
-                        </p>
-                    </article>
-
-                    <article className="admin-summary-card">
-                        <div className="admin-summary-top">
-                            <div className="admin-summary-icon admin-status-normal">
-                                <CloudRain size={22} />
-                            </div>
-                            <span className="admin-status-pill admin-status-normal">forecast</span>
-                        </div>
-                        <p className="admin-summary-label">Forecast Defaults</p>
-                        <h3 className="admin-summary-value">{forecastSettings.length}</h3>
-                        <p className="admin-summary-meta">
-                            Default system assumptions are separated from Lab Assistant what-if runs.
-                        </p>
-                    </article>
-
-                    <article className="admin-summary-card">
-                        <div className="admin-summary-top">
-                            <div className="admin-summary-icon admin-status-normal">
-                                <History size={22} />
-                            </div>
-                            <span className="admin-status-pill admin-status-normal">audit</span>
-                        </div>
-                        <p className="admin-summary-label">Audit Events</p>
-                        <h3 className="admin-summary-value">{auditLogs.length}</h3>
-                        <p className="admin-summary-meta">
-                            Audit structure covers login, role, threshold, reports, and camera access.
-                        </p>
-                    </article>
+                            <p className="admin-summary-label">{item.label}</p>
+                            <h3 className="admin-summary-value">{item.value}</h3>
+                            <p className="admin-summary-meta">{item.meta}</p>
+                        </article>
+                    ))}
                 </div>
 
                 <div className="admin-grid admin-grid-balanced">
                     <section className="admin-panel">
                         <SectionHeader
                             title="System Control Areas"
-                            description="Open a focused admin section from the navigation or the controls below."
+                            description="Open a focused admin module."
                             icon={<ShieldCheck size={20} />}
                         />
-
                         <div className="admin-control-link-grid">
                             {sectionNav.filter((item) => item.id !== "overview").map((item) => (
-                                <button
-                                    key={item.id}
-                                    type="button"
-                                    className="admin-control-link"
-                                    onClick={() => navigate(item.path)}
-                                >
+                                <button key={item.id} type="button" className="admin-control-link" onClick={() => navigate(item.path)}>
+                                    <span>{item.icon}</span>
                                     <strong>{item.label}</strong>
-                                    <span>{item.description}</span>
+                                    <small>{item.description}</small>
                                 </button>
                             ))}
                         </div>
@@ -264,32 +265,24 @@ export default function SystemAdminPage() {
                     <section className="admin-panel">
                         <SectionHeader
                             title="Current Alerts"
-                            description="Priorities for the Rainwater Tank integration path."
+                            description="Live backend statuses that need attention."
                             icon={<AlertTriangle size={20} />}
                         />
-
                         <div className="admin-task-list">
-                            <article className="admin-task-item">
-                                <span className="admin-task-marker admin-status-warning" />
-                                <div>
-                                    <div className="admin-task-top">
-                                        <h3>ESP32 telemetry delay</h3>
-                                        <StatusPill status="Warning" />
+                            {currentAlerts.length === 0 ? (
+                                <div className="empty-state compact"><strong>No current alerts</strong><span>Backend API and database-backed admin modules are responding.</span></div>
+                            ) : currentAlerts.map((alert) => (
+                                <article key={alert} className="admin-task-item">
+                                    <span className="admin-task-marker admin-status-warning" />
+                                    <div>
+                                        <div className="admin-task-top">
+                                            <h3>{alert}</h3>
+                                            <StatusPill status="warning" />
+                                        </div>
+                                        <p>Review the related admin module for details.</p>
                                     </div>
-                                    <p>Sensor node last data arrived later than expected.</p>
-                                </div>
-                            </article>
-
-                            <article className="admin-task-item">
-                                <span className="admin-task-marker admin-status-warning" />
-                                <div>
-                                    <div className="admin-task-top">
-                                        <h3>Water temperature sensor pending</h3>
-                                        <StatusPill status="Pending" />
-                                    </div>
-                                    <p>Calibration step before live readings are trusted.</p>
-                                </div>
-                            </article>
+                                </article>
+                            ))}
                         </div>
                     </section>
                 </div>
@@ -300,12 +293,7 @@ export default function SystemAdminPage() {
     function renderDevices() {
         return (
             <section className="admin-panel">
-                <SectionHeader
-                    title="Device and Sensor Management"
-                    description={`System-wide hardware registry for ${RAINWATER_TANK_NAME}. Actions are prepared until backend APIs are connected.`}
-                    icon={<Cpu size={20} />}
-                />
-
+                <SectionHeader title="Device Management" description="Database-backed hardware registry and action controls." icon={<Cpu size={20} />} />
                 <div className="admin-table-wrap">
                     <table className="admin-table">
                         <thead>
@@ -314,42 +302,38 @@ export default function SystemAdminPage() {
                                 <th>Category</th>
                                 <th>Status</th>
                                 <th>Last Seen</th>
-                                <th>Last Data Received</th>
+                                <th>Last Data</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {deviceRows.map((row) => (
-                                <tr key={row.id}>
-                                    <td>{row.name}</td>
-                                    <td>{row.category}</td>
-                                    <td><StatusPill status={row.status} /></td>
-                                    <td>{row.lastSeen}</td>
-                                    <td>{row.lastData}</td>
+                            {devices.map((device) => (
+                                <tr key={device.id}>
+                                    <td>{device.name}</td>
+                                    <td>{device.category}</td>
+                                    <td><StatusPill status={device.status} /></td>
+                                    <td>{device.lastSeen}</td>
+                                    <td>{device.lastData}</td>
                                     <td>
                                         <div className="admin-actions-cell start">
-                                            <button
-                                                type="button"
-                                                className="admin-icon-btn"
-                                                title="View device details"
-                                                aria-label="View device details"
-                                                onClick={() => setViewDevice(row)}
+                                            <select
+                                                className="admin-inline-select"
+                                                value={deviceStatusDraft[device.id] ?? device.status}
+                                                onChange={(event) => setDeviceStatusDraft((prev) => ({ ...prev, [device.id]: event.target.value }))}
                                             >
-                                                <Eye size={15} />
+                                                {statusOptions.map((option) => <option key={option}>{option}</option>)}
+                                            </select>
+                                            <button className="admin-secondary-btn" type="button" disabled={actionLoading !== ""} onClick={() => runAction("Update Device", () => updateAdminDeviceStatus(device.id, deviceStatusDraft[device.id] ?? device.status), loadAdminData)}>
+                                                Save
                                             </button>
-                                            <button
-                                                type="button"
-                                                className="admin-icon-btn"
-                                                title="Manage device"
-                                                aria-label="Manage device"
-                                                onClick={() => {
-                                                    setManageDevice(row);
-                                                    setManageStatus(row.status);
-                                                    setManageSensorTag(row.inputTag ?? "");
-                                                    setManageActionMsg("");
-                                                }}
-                                            >
-                                                <Settings size={15} />
+                                            <button className="admin-secondary-btn" type="button" disabled={actionLoading !== ""} onClick={() => runAction("Mark Maintenance", () => markAdminDeviceMaintenance(device.id), loadAdminData)}>
+                                                Maintenance
+                                            </button>
+                                            <button className="admin-secondary-btn" type="button" disabled={actionLoading !== ""} onClick={() => runAction("Refresh Device", () => refreshAdminDevice(device.id), loadAdminData)}>
+                                                <RefreshCcw size={14} /> Refresh
+                                            </button>
+                                            <button className="admin-secondary-btn" type="button" disabled={actionLoading !== ""} onClick={() => runAction("Restart Service", () => restartAdminDeviceService(device.id), loadAdminData)}>
+                                                Restart
                                             </button>
                                         </div>
                                     </td>
@@ -358,43 +342,32 @@ export default function SystemAdminPage() {
                         </tbody>
                     </table>
                 </div>
-
-                <div className="admin-info-strip">
-                    <Camera size={18} />
-                    <div>
-                        <strong>Configured camera stream</strong>
-                        <span title={RPI_CAMERA_STREAM_URL}>{RPI_CAMERA_STREAM_URL}</span>
-                    </div>
-                </div>
             </section>
         );
     }
 
     function renderHealth() {
+        const cards = services.length > 0 ? services : [
+            { id: 0, serviceKey: "backend_api", serviceName: "Backend API status", status: health?.backendApi ?? "unknown", implemented: true, detail: "Spring Boot backend API.", checkedAt: "" },
+        ];
+
         return (
             <section className="admin-panel">
-                <SectionHeader
-                    title="System Health"
-                    description="Gateway and service health slots for the prototype."
-                    icon={<Activity size={20} />}
-                />
-
-                <div className="admin-health-grid">
-                    {systemHealthMetrics.map((metric) => (
-                        <article key={metric.label} className="admin-health-card">
-                            <div className="admin-health-card-top">
-                                <div>
-                                    <h3>{metric.label}</h3>
-                                    <strong>{metric.value}</strong>
-                                </div>
-                                <StatusPill status={metric.status} />
+                <SectionHeader title="System Health" description="Useful service status cards without unused CPU, memory, or disk placeholders." icon={<HeartPulse size={20} />} />
+                <div className="admin-diagnostic-actions">
+                    <button className="admin-primary-btn" type="button" disabled={actionLoading !== ""} onClick={() => runAction("System Health Check", () => runAdminSystemHealthCheck(), loadAdminData)}>
+                        {actionLoading === "System Health Check" ? "Checking..." : "Run Health Check"}
+                    </button>
+                </div>
+                <div className="admin-grid admin-grid-three">
+                    {cards.map((service) => (
+                        <article key={service.serviceKey} className="admin-mini-panel admin-engine-card">
+                            <div className="admin-engine-top">
+                                <h2>{service.serviceName}</h2>
+                                <StatusPill status={service.status} />
                             </div>
-                            {typeof metric.progress === "number" && (
-                                <div className="admin-meter">
-                                    <span style={{ width: `${metric.progress}%` }} />
-                                </div>
-                            )}
-                            <p>{metric.helper}</p>
+                            <p>{service.detail}</p>
+                            <p><strong>Checked:</strong> {service.checkedAt || "Pending"}</p>
                         </article>
                     ))}
                 </div>
@@ -405,97 +378,64 @@ export default function SystemAdminPage() {
     function renderThresholds() {
         return (
             <section className="admin-panel">
-                <SectionHeader
-                    title="Threshold Management"
-                    description="Admin-only system thresholds that will later drive anomaly detection."
-                    icon={<Gauge size={20} />}
-                />
-
-                <div className="admin-settings-grid">
-                    {thresholdSettings.map((setting) => (
-                        <label key={setting.id} className="admin-field">
-                            {setting.label}
-                            <div className="admin-input-with-unit">
-                                <input
-                                    value={thresholdValues[setting.id]}
-                                    onChange={(event) =>
-                                        setThresholdValues((prev) => ({
-                                            ...prev,
-                                            [setting.id]: event.target.value,
-                                        }))
-                                    }
-                                />
-                                <span>{setting.unit}</span>
+                <SectionHeader title="Threshold Rules" description="Edit warning and anomaly thresholds saved in MariaDB." icon={<Gauge size={20} />} />
+                <div className="admin-threshold-grid">
+                    {thresholds.map((threshold) => (
+                        <label key={threshold.thresholdKey} className="admin-threshold-card">
+                            <div className="admin-threshold-card-header">
+                                <div>
+                                    <h3>{threshold.label}</h3>
+                                    <p>{threshold.helper}</p>
+                                </div>
+                                <StatusPill status={threshold.severity} />
                             </div>
-                            <small>{setting.helper}</small>
+                            <div className="admin-threshold-input-row">
+                                <input value={thresholdDraft[threshold.thresholdKey] ?? ""} onChange={(event) => setThresholdDraft((prev) => ({ ...prev, [threshold.thresholdKey]: event.target.value }))} />
+                                <span>{threshold.unit}</span>
+                            </div>
                         </label>
                     ))}
                 </div>
-
-                <button
-                    className="admin-primary-btn"
-                    type="button"
-                    onClick={() => setSaveMessage("Threshold settings saved locally. Backend settings API is ready to connect later.")}
-                >
-                    Save Thresholds
-                </button>
+                <div className="admin-form-actions">
+                    <button className="admin-primary-btn" type="button" disabled={actionLoading !== ""} onClick={() => runAction("Save Thresholds", () => saveAdminThresholds(thresholdDraft), loadAdminData)}>
+                        {actionLoading === "Save Thresholds" ? "Saving..." : "Save Thresholds"}
+                    </button>
+                    <button className="admin-secondary-btn" type="button" disabled={actionLoading !== ""} onClick={() => runAction("Reset Thresholds", () => resetAdminThresholds(), loadAdminData)}>
+                        Reset
+                    </button>
+                </div>
             </section>
         );
     }
 
-    function renderForecast() {
+    function renderForecastSettings() {
         return (
             <section className="admin-panel">
-                <SectionHeader
-                    title="Forecast Settings"
-                    description="System-wide assumptions used by forecast modules. Lab Assistants can run what-if simulations without saving these."
-                    icon={<CloudRain size={20} />}
-                />
-
-                <div className="admin-settings-grid">
+                <SectionHeader title="Forecast Settings" description="Default assumptions used by backend forecast modules." icon={<CloudRain size={20} />} />
+                <div className="admin-threshold-grid">
                     {forecastSettings.map((setting) => (
-                        <label key={setting.id} className="admin-field">
-                            {setting.label}
-                            {setting.kind === "select" ? (
-                                <select
-                                    value={forecastValues[setting.id]}
-                                    onChange={(event) =>
-                                        setForecastValues((prev) => ({
-                                            ...prev,
-                                            [setting.id]: event.target.value,
-                                        }))
-                                    }
-                                >
-                                    {setting.options?.map((option) => (
-                                        <option key={option}>{option}</option>
-                                    ))}
-                                </select>
-                            ) : (
-                                <div className="admin-input-with-unit">
-                                    <input
-                                        value={forecastValues[setting.id]}
-                                        onChange={(event) =>
-                                            setForecastValues((prev) => ({
-                                                ...prev,
-                                                [setting.id]: event.target.value,
-                                            }))
-                                        }
-                                    />
-                                    {setting.unit && <span>{setting.unit}</span>}
+                        <label key={setting.settingKey} className="admin-threshold-card">
+                            <div className="admin-threshold-card-header">
+                                <div>
+                                    <h3>{setting.label}</h3>
+                                    <p>{setting.helper}</p>
                                 </div>
-                            )}
-                            <small>{setting.helper}</small>
+                            </div>
+                            <div className="admin-threshold-input-row">
+                                <input value={forecastDraft[setting.settingKey] ?? ""} onChange={(event) => setForecastDraft((prev) => ({ ...prev, [setting.settingKey]: event.target.value }))} />
+                                <span>{setting.unit}</span>
+                            </div>
                         </label>
                     ))}
                 </div>
-
-                <button
-                    className="admin-primary-btn"
-                    type="button"
-                    onClick={() => setSaveMessage("Forecast defaults saved locally. Backend forecast settings API is ready to connect later.")}
-                >
-                    Save Forecast Defaults
-                </button>
+                <div className="admin-form-actions">
+                    <button className="admin-primary-btn" type="button" disabled={actionLoading !== ""} onClick={() => runAction("Save Forecast Settings", () => saveAdminForecastSettings(forecastDraft), loadAdminData)}>
+                        {actionLoading === "Save Forecast Settings" ? "Saving..." : "Save Forecast Settings"}
+                    </button>
+                    <button className="admin-secondary-btn" type="button" disabled={actionLoading !== ""} onClick={() => runAction("Reset Forecast Settings", () => resetAdminForecastSettings(), loadAdminData)}>
+                        Reset
+                    </button>
+                </div>
             </section>
         );
     }
@@ -503,47 +443,42 @@ export default function SystemAdminPage() {
     function renderReports() {
         return (
             <section className="admin-panel">
-                <SectionHeader
-                    title="Report Template Management"
-                    description="Default report sections for generated monitoring reports."
-                    icon={<ClipboardList size={20} />}
-                />
-
-                <div className="admin-template-list">
-                    {reportSections.map((section) => (
-                        <button
-                            key={section.id}
-                            type="button"
-                            className="admin-template-row"
-                            onClick={() =>
-                                setReportSections((prev) =>
-                                    prev.map((item) =>
-                                        item.id === section.id
-                                            ? { ...item, enabled: !item.enabled }
-                                            : item,
-                                    ),
-                                )
-                            }
-                            aria-pressed={section.enabled}
-                        >
-                            <span>
-                                <strong>{section.label}</strong>
-                                <small>{section.enabled ? "Included by default" : "Excluded by default"}</small>
-                            </span>
-                            <span className={`admin-toggle ${section.enabled ? "active" : ""}`}>
-                                <i />
-                            </span>
-                        </button>
-                    ))}
+                <SectionHeader title="Report Templates" description="Create and edit database-backed report templates." icon={<ClipboardList size={20} />} />
+                <div className="admin-create-row">
+                    <input className="admin-field input" value={newTemplateName} onChange={(event) => setNewTemplateName(event.target.value)} placeholder="Template name" />
+                    <button className="admin-primary-btn" type="button" disabled={actionLoading !== "" || !newTemplateName.trim()} onClick={() => runAction("Save Report Template", () => createAdminReportTemplate({ name: newTemplateName, description: "Custom admin report template", sectionsJson: "[]", enabled: true }), async () => { setNewTemplateName(""); await loadAdminData(); })}>
+                        Create Template
+                    </button>
                 </div>
-
-                <button
-                    className="admin-primary-btn"
-                    type="button"
-                    onClick={() => setSaveMessage("Report template saved locally. Backend report template API is ready to connect later.")}
-                >
-                    Save Report Template
-                </button>
+                <div className="admin-template-grid">
+                    {reportTemplates.map((template) => {
+                        const draft = templateDraft[template.id] ?? template;
+                        return (
+                            <article key={template.id} className="admin-mini-panel">
+                                <label className="admin-field">
+                                    Name
+                                    <input value={draft.name} onChange={(event) => setTemplateDraft((prev) => ({ ...prev, [template.id]: { ...draft, name: event.target.value } }))} />
+                                </label>
+                                <label className="admin-field">
+                                    Description
+                                    <textarea value={draft.description} onChange={(event) => setTemplateDraft((prev) => ({ ...prev, [template.id]: { ...draft, description: event.target.value } }))} />
+                                </label>
+                                <label className="admin-field">
+                                    Sections JSON
+                                    <textarea value={draft.sectionsJson} onChange={(event) => setTemplateDraft((prev) => ({ ...prev, [template.id]: { ...draft, sectionsJson: event.target.value } }))} />
+                                </label>
+                                <div className="admin-form-actions">
+                                    <button className="admin-primary-btn" type="button" disabled={actionLoading !== ""} onClick={() => runAction("Save Report Template", () => updateAdminReportTemplate(template.id, draft), loadAdminData)}>
+                                        Save
+                                    </button>
+                                    <button className="admin-secondary-btn" type="button" disabled={actionLoading !== ""} onClick={() => runAction("Delete Report Template", () => deleteAdminReportTemplate(template.id), loadAdminData)}>
+                                        <Trash2 size={14} /> Delete
+                                    </button>
+                                </div>
+                            </article>
+                        );
+                    })}
+                </div>
             </section>
         );
     }
@@ -551,59 +486,23 @@ export default function SystemAdminPage() {
     function renderDiagnostics() {
         return (
             <section className="admin-panel">
-                <SectionHeader
-                    title="Troubleshooting and Diagnostics"
-                    description="Diagnostic cards and repair controls for admin workflows."
-                    icon={<Wrench size={20} />}
-                />
-
+                <SectionHeader title="Diagnostics" description="Run backend diagnostics and keep the results in admin_diagnostics." icon={<Wrench size={20} />} />
                 <div className="admin-diagnostic-actions">
-                    <button
-                        className="admin-primary-btn"
-                        type="button"
-                        onClick={() => setDiagnosticMessage("Diagnostics queued for all prepared services.")}
-                    >
-                        Run Diagnostics
-                    </button>
-                    <button
-                        className="admin-secondary-btn"
-                        type="button"
-                        onClick={() => setDiagnosticMessage("Camera feed restart action queued.")}
-                    >
-                        Restart Camera Feed
-                    </button>
-                    <button
-                        className="admin-secondary-btn"
-                        type="button"
-                        onClick={() => setDiagnosticMessage("Sensor connection refresh action queued.")}
-                    >
-                        Refresh Sensor Connection
-                    </button>
-                    <button
-                        className="admin-secondary-btn"
-                        type="button"
-                        onClick={() => setDiagnosticMessage("Log export action queued.")}
-                    >
-                        Export Logs
+                    <button className="admin-primary-btn" type="button" disabled={actionLoading !== ""} onClick={() => runAction("Run Diagnostics", () => runAdminDiagnostics(), loadAdminData)}>
+                        {actionLoading === "Run Diagnostics" ? "Running..." : "Run Diagnostics"}
                     </button>
                 </div>
-
-                <div className="admin-info-strip">
-                    <RefreshCcw size={18} />
-                    <div>
-                        <strong>Status</strong>
-                        <span>{diagnosticMessage}</span>
-                    </div>
-                </div>
-
                 <div className="admin-diagnostic-grid">
-                    {diagnosticCards.map((card) => (
-                        <article key={card.id} className="admin-diagnostic-card">
+                    {diagnostics.length === 0 ? (
+                        <div className="empty-state compact"><strong>No diagnostics yet</strong><span>Run diagnostics to create backend records.</span></div>
+                    ) : diagnostics.map((item) => (
+                        <article key={item.id} className="admin-diagnostic-card">
                             <div className="admin-task-top">
-                                <h3>{card.title}</h3>
-                                <StatusPill status={card.status} />
+                                <h3>{item.checkName}</h3>
+                                <StatusPill status={item.status} />
                             </div>
-                            <p>{card.description}</p>
+                            <p>{item.detail}</p>
+                            <p><strong>Result:</strong> {item.result}</p>
                         </article>
                     ))}
                 </div>
@@ -614,12 +513,12 @@ export default function SystemAdminPage() {
     function renderAudit() {
         return (
             <section className="admin-panel">
-                <SectionHeader
-                    title="Audit Logs"
-                    description="Audit log structure for role, threshold, report, forecast, anomaly, and camera activity."
-                    icon={<History size={20} />}
-                />
-
+                <SectionHeader title="Audit Logs" description="Database-backed admin action history." icon={<History size={20} />} />
+                <div className="admin-form-actions">
+                    <button className="admin-secondary-btn" type="button" disabled={actionLoading !== "" || auditLogs.length === 0} onClick={() => runAction("Clear Audit Logs", () => clearAdminAuditLogs(), loadAdminData)}>
+                        Clear Audit Logs
+                    </button>
+                </div>
                 <div className="admin-table-wrap">
                     <table className="admin-table">
                         <thead>
@@ -632,12 +531,14 @@ export default function SystemAdminPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {auditLogs.map((row) => (
+                            {auditLogs.length === 0 ? (
+                                <tr><td colSpan={5}>No audit records yet.</td></tr>
+                            ) : auditLogs.map((row) => (
                                 <tr key={row.id}>
                                     <td>{row.event}</td>
                                     <td>{row.actor}</td>
                                     <td>{row.target}</td>
-                                    <td>{row.timestamp}</td>
+                                    <td>{row.createdAt}</td>
                                     <td><StatusPill status={row.status} /></td>
                                 </tr>
                             ))}
@@ -649,32 +550,22 @@ export default function SystemAdminPage() {
     }
 
     function renderActiveSection() {
+        if (loading) return <div className="empty-state compact"><strong>Loading admin modules</strong><span>Fetching database-backed admin APIs.</span></div>;
         switch (activeSection) {
-            case "devices":
-                return renderDevices();
-            case "health":
-                return renderHealth();
-            case "thresholds":
-                return renderThresholds();
-            case "forecast":
-                return renderForecast();
-            case "reports":
-                return renderReports();
-            case "diagnostics":
-                return renderDiagnostics();
-            case "audit":
-                return renderAudit();
-            default:
-                return renderOverview();
+            case "devices": return renderDevices();
+            case "health": return renderHealth();
+            case "thresholds": return renderThresholds();
+            case "forecast": return renderForecastSettings();
+            case "reports": return renderReports();
+            case "diagnostics": return renderDiagnostics();
+            case "audit": return renderAudit();
+            default: return renderOverview();
         }
     }
 
     return (
         <div className={`app-shell-fixed ${sidebarOpen ? "sidebar-expanded" : "sidebar-collapsed"}`}>
-            <Sidebar
-                isOpen={sidebarOpen}
-                onToggle={() => setSidebarOpen((prev) => !prev)}
-            />
+            <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen((prev) => !prev)} />
 
             <div className="content-shell">
                 <main className="dashboard-content-scroll">
@@ -683,165 +574,21 @@ export default function SystemAdminPage() {
                             kicker="Admin System Controls"
                             title={activeMeta.label}
                             subtitle={activeMeta.description}
-                            inlineMessage={saveMessage}
+                            inlineMessage={message || error}
                             secondaryAction={
-                                <button className="admin-secondary-btn" type="button">Integration Ready</button>
+                                <button className="admin-secondary-btn" type="button" onClick={() => void loadAdminData()} disabled={loading || actionLoading !== ""}>
+                                    {loading ? "Loading..." : "Refresh"}
+                                </button>
                             }
                         />
 
-                        <div className="admin-section-tabs">
-                            {sectionNav.map((item) => (
-                                <button
-                                    key={item.id}
-                                    type="button"
-                                    className={`admin-section-tab ${activeSection === item.id ? "active" : ""}`}
-                                    onClick={() => navigate(item.path)}
-                                >
-                                    {item.label}
-                                </button>
-                            ))}
-                        </div>
+                        {error && <div className="admin-inline-alert">{error}</div>}
+                        {actionLoading && <div className="admin-inline-alert">{actionLoading} in progress...</div>}
 
                         {renderActiveSection()}
                     </div>
                 </main>
             </div>
-
-            {viewDevice && (
-                <div className="admin-modal-backdrop">
-                    <div className="admin-modal-card">
-                        <div className="admin-modal-header">
-                            <div>
-                                <h2>{viewDevice.name}</h2>
-                                <p>{viewDevice.category}</p>
-                            </div>
-                            <button
-                                type="button"
-                                className="admin-icon-btn"
-                                onClick={() => setViewDevice(null)}
-                                aria-label="Close"
-                            >
-                                <X size={16} />
-                            </button>
-                        </div>
-
-                        <div className="admin-modal-grid">
-                            <div><span>Status</span><StatusPill status={viewDevice.status} /></div>
-                            <div><span>Category</span><strong>{viewDevice.category}</strong></div>
-                            <div><span>Last Seen</span><strong>{viewDevice.lastSeen}</strong></div>
-                            <div><span>Last Data</span><strong>{viewDevice.lastData}</strong></div>
-                            {viewDevice.inputTag && (
-                                <div className="admin-modal-wide"><span>Sensor Tag</span><strong>{viewDevice.inputTag}</strong></div>
-                            )}
-                        </div>
-
-                        <div className="admin-modal-section">
-                            <h3>Recent Logs</h3>
-                            <div className="admin-modal-log-list">
-                                <div className="admin-modal-log-item"><span className="admin-status-pill admin-status-warning">pending</span> Telemetry listener waiting for ESP32 connection</div>
-                                <div className="admin-modal-log-item"><span className="admin-status-pill admin-status-warning">pending</span> Sensor heartbeat not yet received</div>
-                                <div className="admin-modal-log-item"><span className="admin-status-pill admin-status-normal">ready</span> Backend device endpoint prepared</div>
-                                <div className="admin-modal-log-item"><span className="admin-status-pill admin-status-normal">ready</span> Camera stream URL configured</div>
-                            </div>
-                            <p className="admin-modal-note">Full device logs will load from <code>GET /api/devices/{"{id}"}/logs</code> when backend is connected.</p>
-                        </div>
-
-                        <div className="admin-modal-actions">
-                            <button type="button" className="admin-secondary-btn" onClick={() => setViewDevice(null)}>Close</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {manageDevice && (
-                <div className="admin-modal-backdrop">
-                    <div className="admin-modal-card">
-                        <div className="admin-modal-header">
-                            <div>
-                                <h2>Manage: {manageDevice.name}</h2>
-                                <p>Admin controls for this device. Backend endpoints are prepared but not yet connected.</p>
-                            </div>
-                            <button
-                                type="button"
-                                className="admin-icon-btn"
-                                onClick={() => setManageDevice(null)}
-                                aria-label="Close"
-                            >
-                                <X size={16} />
-                            </button>
-                        </div>
-
-                        <div className="admin-modal-section">
-                            <h3>Update Status</h3>
-                            <div className="admin-modal-field-row">
-                                <select
-                                    className="admin-inline-select"
-                                    value={manageStatus}
-                                    onChange={(e) => setManageStatus(e.target.value)}
-                                >
-                                    <option>Online</option>
-                                    <option>Offline</option>
-                                    <option>Pending</option>
-                                    <option>Warning</option>
-                                </select>
-                                <button
-                                    type="button"
-                                    className="admin-primary-btn"
-                                    onClick={() => setManageActionMsg(`Status updated to "${manageStatus}" in frontend. Backend PATCH /api/devices/${manageDevice.id}/status is ready to connect.`)}
-                                >
-                                    Apply
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="admin-modal-section">
-                            <h3>Assign Sensor Tag</h3>
-                            <div className="admin-modal-field-row">
-                                <input
-                                    className="admin-field input"
-                                    value={manageSensorTag}
-                                    onChange={(e) => setManageSensorTag(e.target.value)}
-                                    placeholder="e.g. ultrasonic_trig"
-                                    style={{ flex: 1 }}
-                                />
-                                <button
-                                    type="button"
-                                    className="admin-primary-btn"
-                                    onClick={() => setManageActionMsg(`Sensor tag "${manageSensorTag}" assigned in frontend. Backend PATCH /api/devices/${manageDevice.id}/tag is ready to connect.`)}
-                                >
-                                    Assign
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="admin-modal-section">
-                            <h3>Device Actions</h3>
-                            <div className="admin-modal-action-row">
-                                <button type="button" className="admin-secondary-btn" onClick={() => setManageActionMsg("Restart service queued. POST /api/devices/" + manageDevice.id + "/restart is ready to connect.")}>
-                                    <RefreshCcw size={14} /> Restart Service
-                                </button>
-                                <button type="button" className="admin-secondary-btn" onClick={() => setManageActionMsg("Connection refresh queued. POST /api/devices/" + manageDevice.id + "/refresh is ready to connect.")}>
-                                    <Activity size={14} /> Refresh Connection
-                                </button>
-                                <button type="button" className="admin-secondary-btn" onClick={() => setManageActionMsg("Device marked as under maintenance. PATCH /api/devices/" + manageDevice.id + "/maintenance is ready to connect.")}>
-                                    <Wrench size={14} /> Mark Maintenance
-                                </button>
-                            </div>
-                        </div>
-
-                        {manageActionMsg && (
-                            <div className="admin-info-strip">
-                                <ShieldCheck size={16} />
-                                <div><span>{manageActionMsg}</span></div>
-                            </div>
-                        )}
-
-                        <div className="admin-modal-actions">
-                            <button type="button" className="admin-secondary-btn" onClick={() => setManageDevice(null)}>Close</button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

@@ -7,7 +7,7 @@ import { formatCurrentDateTime } from "./time";
 
 export { RAINWATER_TANK_NAME };
 
-export type ManagedRole = "SUPER_ADMIN" | "LAB_ASSISTANT" | "MAINTENANCE" | "VIEWER";
+export type ManagedRole = "SUPER_ADMIN" | "LAB_ASSISTANT";
 export type UserAccessStatus = "Active" | "Suspended" | "Pending";
 export type DeviceStatus = "Online" | "Offline" | "Pending" | "Warning";
 export type AdminStatus = "normal" | "warning" | "critical";
@@ -128,8 +128,6 @@ export type SystemEngine = {
 export const roleLabels: Record<ManagedRole, string> = {
     SUPER_ADMIN: "Super Admin",
     LAB_ASSISTANT: "Lab Assistant",
-    MAINTENANCE: "Maintenance",
-    VIEWER: "Viewer",
 };
 
 export const permissionDefinitions: PermissionDefinition[] = [
@@ -207,33 +205,6 @@ export const rolePolicies: RolePolicy[] = [
         ],
         status: "Active",
     },
-    {
-        role: "MAINTENANCE",
-        label: roleLabels.MAINTENANCE,
-        description: "Hardware support role for device checks, camera troubleshooting, and sensor maintenance.",
-        permissions: [
-            "dashboard",
-            "telemetry",
-            "camera",
-            "anomalies",
-            "deviceManagement",
-        ],
-        status: "Planned",
-    },
-    {
-        role: "VIEWER",
-        label: roleLabels.VIEWER,
-        description: "Read-only role for supervisors or external evaluators.",
-        permissions: [
-            "dashboard",
-            "telemetry",
-            "forecast",
-            "reports",
-            "camera",
-            "anomalies",
-        ],
-        status: "Planned",
-    },
 ];
 
 export const profileByUserRole: Record<UserRole, {
@@ -244,13 +215,13 @@ export const profileByUserRole: Record<UserRole, {
     rolePolicy: ManagedRole;
 }> = {
     LAB_ASSISTANT: {
-        name: "Jasmine Tan",
+        name: "Registered Lab User",
         title: "Lab Assistant",
-        email: "jasmine@example.com",
-        phone: "+60 12-555 0198",
+        email: "",
+        phone: "",
         rolePolicy: "LAB_ASSISTANT",
     },
-    SYSTEM_ADMIN: {
+    SUPER_ADMIN: {
         name: "Super Admin",
         title: "Super Administrator",
         email: "admin@raincatcher.local",
@@ -271,9 +242,9 @@ export const initialManagedUsers: ManagedUser[] = [
     },
     {
         id: 2,
-        name: "Jasmine Tan",
-        email: "jasmine@example.com",
-        phone: "+60 12-555 0198",
+        name: "Registered Lab User",
+        email: "lab-user@raincatcher.local",
+        phone: "",
         role: "LAB_ASSISTANT",
         status: "Active",
         lastLogin: formatCurrentDateTime(),
@@ -354,56 +325,52 @@ export const deviceRows: DeviceRow[] = [
 
 export const systemHealthMetrics: HealthMetric[] = [
     {
-        label: "Raspberry Pi CPU usage",
-        value: "Pending live metric",
-        helper: "Connect Pi system telemetry to populate CPU load.",
-        status: "warning",
-        progress: 0,
+        label: "Backend API status",
+        value: "Online",
+        helper: "Spring Boot backend is the source for admin module data.",
+        status: "normal",
     },
     {
-        label: "Raspberry Pi temperature",
-        value: "Pending live metric",
-        helper: "Connect Pi system telemetry to populate board temperature.",
-        status: "warning",
-        progress: 0,
+        label: "Database status",
+        value: "Connected",
+        helper: "MariaDB tables are managed through backend entities.",
+        status: "normal",
     },
     {
-        label: "Memory usage",
-        value: "Pending live metric",
-        helper: "Connect Pi system telemetry to populate memory usage.",
-        status: "warning",
-        progress: 0,
-    },
-    {
-        label: "Disk/storage usage",
-        value: "Pending live metric",
-        helper: "Connect Pi storage telemetry before snapshot retention is enabled.",
-        status: "warning",
-        progress: 0,
-    },
-    {
-        label: "Camera status",
+        label: "Camera service status",
         value: "Configured",
         helper: "USB webcam stream is configured through environment settings.",
         status: "normal",
     },
     {
-        label: "Sensor node status",
+        label: "YOLO service status",
+        value: "Not implemented",
+        helper: "YOLO analyzer service checks are exposed as backend readiness status.",
+        status: "warning",
+    },
+    {
+        label: "ESP32 telemetry status",
         value: "Awaiting ESP32",
         helper: "ESP32 reporting interval and Wi-Fi connection still need live verification.",
         status: "warning",
     },
     {
-        label: "Backend API status",
-        value: "Placeholder endpoints",
-        helper: "Spring Boot endpoints are prepared for real services and persistence.",
-        status: "warning",
+        label: "Weather API status",
+        value: "Configured",
+        helper: "AccuWeather records load when the backend API key is configured.",
+        status: "normal",
     },
     {
-        label: "Database status",
-        value: "Awaiting schema",
-        helper: "Audit, users, settings, and sensor readings still need persistence.",
-        status: "warning",
+        label: "Forecast API status",
+        value: "Ready",
+        helper: "Forecast endpoints store runs and expose calibration fields.",
+        status: "normal",
+    },
+    {
+        label: "Report generation status",
+        value: "Ready",
+        helper: "Reports are stored through backend report APIs.",
+        status: "normal",
     },
 ];
 
@@ -569,7 +536,7 @@ export const auditLogs: AuditLogRow[] = [
     {
         id: 1,
         event: "User login",
-        actor: "Jasmine Tan",
+        actor: "Lab Assistant",
         target: "Lab workspace",
         timestamp: formatCurrentDateTime(),
         status: "normal",
@@ -577,7 +544,7 @@ export const auditLogs: AuditLogRow[] = [
     {
         id: 2,
         event: "Camera accessed",
-        actor: "Jasmine Tan",
+        actor: "Lab Assistant",
         target: RAINWATER_TANK_NAME,
         timestamp: formatCurrentDateTime(),
         status: "normal",

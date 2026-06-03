@@ -30,7 +30,7 @@
 
 /* FILTER BUTTONS */
 .forecast-filter-btn {
-    background: #fff;
+    background: var(--input);
     border: 1px solid var(--border);
     border-radius: 14px;
     padding: 12px 16px;
@@ -54,7 +54,7 @@
 }
 
 .forecast-metric-card {
-    background: #fff;
+    background: var(--card);
     border: 1px solid var(--border);
     border-radius: 22px;
     padding: 22px;
@@ -106,7 +106,7 @@
 
 /* PANELS */
 .forecast-panel {
-    background: #fff;
+    background: var(--card);
     border: 1px solid var(--border);
     border-radius: 22px;
     padding: 20px;
@@ -160,7 +160,7 @@
 }
 
 .forecast-legend-dot-range {
-    background: rgba(109, 76, 255, 0.18);
+    background: color-mix(in srgb, var(--purple) 18%, transparent);
 }
 
 /* CHART */
@@ -175,7 +175,7 @@
 }
 
 .forecast-grid-line {
-    stroke: rgba(15, 23, 42, 0.08);
+    stroke: rgba(15, 23, 42, 0.10);
     stroke-width: 1;
     stroke-dasharray: 4 4;
 }
@@ -186,11 +186,11 @@
 }
 
 .forecast-uncertainty-fill {
-    fill: rgba(109, 76, 255, 0.12);
+    fill: color-mix(in srgb, var(--purple) 12%, transparent);
 }
 
 .forecast-area-fill {
-    fill: rgba(109, 76, 255, 0.06);
+    fill: color-mix(in srgb, var(--purple) 12%, transparent);
 }
 
 .forecast-line {
@@ -200,7 +200,7 @@
 }
 
 .forecast-point {
-    fill: #fff;
+    fill: var(--card);
     stroke: var(--purple);
     stroke-width: 2;
 }
@@ -225,7 +225,7 @@
 .forecast-info-note {
     margin-top: 18px;
     border-radius: 14px;
-    background: rgba(109, 76, 255, 0.06);
+    background: color-mix(in srgb, var(--purple2) 22%, transparent);
     color: var(--muted);
     padding: 14px 16px;
     font-size: 14px;
@@ -258,7 +258,7 @@
 
 .forecast-storage-progress {
     height: 8px;
-    background: #e5e7eb;
+    background: var(--progress-bg);
     border-radius: 999px;
     overflow: hidden;
 }
@@ -288,10 +288,10 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 16px;
-    border: 1px solid rgba(15, 23, 42, 0.06);
+    border: 1px solid var(--border);
     border-radius: 16px;
     padding: 16px;
-    background: #fafbff;
+    background: var(--card-soft);
 }
 
 .forecast-recommendation-item h3 {
@@ -329,8 +329,214 @@
 .forecast-insight-item {
     padding: 16px;
     border-radius: 18px;
-    background: #fafbff;
-    border: 1px solid rgba(15, 23, 42, 0.06);
+    background: var(--card-soft);
+    border: 1px solid var(--border);
+}
+
+.forecast-unified-section {
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--purple2) 16%, var(--card)) 0%, var(--card) 28%);
+    box-shadow: var(--shadow);
+    padding: 22px;
+}
+
+.forecast-section-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    margin-bottom: 20px;
+}
+
+.forecast-section-kicker {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--purple);
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+
+.forecast-section-heading h2 {
+    margin: 0 0 8px;
+    color: var(--text);
+    font-size: 28px;
+    font-weight: 900;
+    line-height: 1.1;
+}
+
+.forecast-section-heading p {
+    margin: 0;
+    max-width: 760px;
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.forecast-unified-metrics {
+    margin-bottom: 20px;
+}
+
+.forecast-left-column {
+    display: grid;
+    gap: 18px;
+}
+
+.forecast-info-note.compact {
+    margin-top: 12px;
+    padding: 12px 14px;
+    font-size: 13px;
+}
+
+.forecast-state-message {
+    margin: 0 0 12px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.forecast-state-message.error {
+    color: var(--red-text);
+}
+
+.forecast-calibrated-strip {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+}
+
+.forecast-calibrated-strip div,
+.forecast-health-grid div {
+    min-height: 66px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--card-soft);
+    padding: 12px;
+    display: grid;
+    gap: 5px;
+}
+
+.forecast-calibrated-strip span,
+.forecast-health-grid span,
+.forecast-mini-chart-wrap > span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.forecast-calibrated-strip strong,
+.forecast-health-grid strong {
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 900;
+    overflow-wrap: anywhere;
+}
+
+.forecast-health-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.forecast-health-grid div:nth-child(5) {
+    grid-column: 1 / -1;
+}
+
+.forecast-mini-chart-wrap {
+    display: grid;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.forecast-mini-chart {
+    height: 86px;
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    align-items: end;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--card-soft);
+}
+
+.forecast-mini-chart span {
+    display: block;
+    min-height: 8px;
+    border-radius: 999px 999px 4px 4px;
+    background: linear-gradient(180deg, var(--purple2), var(--purple));
+}
+
+.forecast-mini-empty {
+    min-height: 72px;
+    border: 1px dashed var(--border);
+    border-radius: 14px;
+    background: var(--card-soft);
+    color: var(--muted);
+    display: grid;
+    place-items: center;
+    padding: 12px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.forecast-action-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.forecast-primary-btn,
+.forecast-secondary-btn {
+    min-height: 40px;
+    border-radius: 12px;
+    padding: 0 14px;
+    font-size: 13px;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.forecast-primary-btn {
+    border: none;
+    background: linear-gradient(90deg, var(--purple), var(--purple2));
+    color: #ffffff;
+}
+
+.forecast-secondary-btn {
+    border: 1px solid var(--border);
+    background: var(--input);
+    color: var(--text);
+}
+
+.forecast-primary-btn:disabled,
+.forecast-secondary-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.62;
+}
+
+.forecast-feedback {
+    min-height: 34px;
+    display: flex;
+    align-items: center;
+    margin-top: 12px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.forecast-feedback .success {
+    color: var(--green-text);
+}
+
+.forecast-feedback .error {
+    color: var(--red-text);
 }
 
 .forecast-insight-item h3 {
@@ -347,6 +553,28 @@
     line-height: 1.5;
 }
 
+/* DARK MODE CHART FIXES */
+body.dark-mode .forecast-grid-line {
+    stroke: rgba(255, 255, 255, 0.11);
+}
+
+body.dark-mode .forecast-info-note {
+    background: rgba(176, 138, 69, 0.14);
+    color: var(--muted);
+}
+
+body.dark-mode .forecast-legend-item {
+    color: var(--muted);
+}
+
+body.dark-mode .forecast-chart-label span {
+    color: var(--muted);
+}
+
+body.dark-mode .forecast-mini-chart-wrap > span {
+    color: var(--muted);
+}
+
 /* RESPONSIVE */
 @media (max-width: 1200px) {
     .forecast-metric-grid {
@@ -355,6 +583,10 @@
 
     .forecast-main-grid {
         grid-template-columns: 1fr;
+    }
+
+    .forecast-calibrated-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .forecast-insights-grid {
@@ -392,5 +624,15 @@
 
     .forecast-chart-labels {
         grid-template-columns: repeat(4, 1fr);
+    }
+
+    .forecast-unified-section {
+        padding: 16px;
+    }
+
+    .forecast-section-heading,
+    .forecast-calibrated-strip,
+    .forecast-health-grid {
+        grid-template-columns: 1fr;
     }
 }
