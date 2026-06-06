@@ -11,13 +11,17 @@ CORS(app)
 
 CAMERA_DEVICE = "/dev/video0"
 CAPTURE_DIR = "/home/raincatcher/raincatcher-pi/camera-ml/captured_images"
-YOLO_MODEL_PATH = "yolo11n.pt"
+CUSTOM_MODEL_PATH = "/home/raincatcher/raincatcher-pi/camera-ml/raincatcher_yolo_best.pt"
+DEFAULT_MODEL_PATH = "/home/raincatcher/raincatcher-pi/camera-ml/yolo11n.pt"
+
+YOLO_MODEL_PATH = CUSTOM_MODEL_PATH if os.path.exists(CUSTOM_MODEL_PATH) else DEFAULT_MODEL_PATH
 
 os.makedirs(CAPTURE_DIR, exist_ok=True)
 
-print("Loading YOLO model...")
+print(f"Loading YOLO model from: {YOLO_MODEL_PATH}")
 yolo_model = YOLO(YOLO_MODEL_PATH)
 print("YOLO model loaded.")
+print(f"YOLO class names: {yolo_model.names}")
 
 
 def open_camera():
@@ -320,3 +324,14 @@ if __name__ == "__main__":
     print("Starting Raincatcher Camera ML Backend with YOLO...")
     print("Open from laptop: http://192.168.100.137:5050")
     app.run(host="0.0.0.0", port=5050, debug=False)
+
+DEFAULT_MODEL_PATH = "/home/raincatcher/raincatcher-pi/camera-ml/yolo11n.pt"
+CUSTOM_MODEL_PATH = "/home/raincatcher/raincatcher-pi/camera-ml/raincatcher_yolo_best.pt"
+
+YOLO_MODEL_PATH = os.environ.get("RAINCATCHER_YOLO_MODEL", CUSTOM_MODEL_PATH)
+
+if not os.path.exists(YOLO_MODEL_PATH):
+    print(f"Custom YOLO model not found at {YOLO_MODEL_PATH}. Falling back to {DEFAULT_MODEL_PATH}")
+    YOLO_MODEL_PATH = DEFAULT_MODEL_PATH
+
+print(f"Loading YOLO model from: {YOLO_MODEL_PATH}")
