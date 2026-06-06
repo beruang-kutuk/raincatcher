@@ -8,12 +8,15 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.util.UriUtils;
 
 import java.time.Duration;
+import java.nio.charset.StandardCharsets;
 
 @RestController
 @RequestMapping("/api/camera-frame")
@@ -21,7 +24,7 @@ public class CameraFrameController {
 
     private final RestClient restClient;
 
-    public CameraFrameController(@Value("${ml.service.base-url:http://192.168.100.137:5051}") String rpiBaseUrl) {
+    public CameraFrameController(@Value("${ml.service.base-url:http://192.168.100.137:5050}") String rpiBaseUrl) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(Duration.ofSeconds(4));
         requestFactory.setReadTimeout(Duration.ofSeconds(8));
@@ -39,6 +42,12 @@ public class CameraFrameController {
     @GetMapping("/yolo")
     public ResponseEntity<byte[]> yoloFrame() {
         return proxyFrame("/api/camera/yolo-frame");
+    }
+
+    @GetMapping("/captured/{filename:.+}")
+    public ResponseEntity<byte[]> capturedFrame(@PathVariable String filename) {
+        String safeFilename = UriUtils.encodePathSegment(filename, StandardCharsets.UTF_8);
+        return proxyFrame("/api/camera/captured/" + safeFilename);
     }
 
     private ResponseEntity<byte[]> proxyFrame(String path) {

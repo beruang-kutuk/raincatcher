@@ -28,7 +28,6 @@ import {
     X,
 } from "lucide-react";
 import {
-    createPendingReportRow,
     quickReportDefinitions,
     type QuickReportId,
     type GeneratedReportRow,
@@ -41,6 +40,14 @@ import {
     type ReportRecord,
     type ReportSummary,
 } from "../../../services/reportsApi";
+import {
+    getAnomalySummary,
+    type AnomalySummary,
+} from "../../../services/anomalyApi";
+import {
+    getCameraRecordHistory,
+    type CameraRecord,
+} from "../../../services/cameraRecordsApi";
 import {
     getReportAiSummary,
     type AiReportSummaryResponse,
@@ -66,6 +73,34 @@ type QuickReport = {
     description: string;
     icon: React.ReactNode;
     tone: "blue" | "red" | "orange" | "green";
+};
+
+type ReportSummaryCard = {
+    label: string;
+    value: string;
+    meta: string;
+};
+
+type ReportTableRow = {
+    metric: string;
+    value: string;
+    remarks: string;
+    status: string;
+};
+
+type ReportTemplateData = {
+    title: string;
+    reportType: string;
+    tank: string;
+    dateRange: string;
+    generatedOn: string;
+    executiveSummary: string;
+    summaryCards: ReportSummaryCard[];
+    metricRows: ReportTableRow[];
+    benchmarkRows: ReportTableRow[];
+    anomalyRows: ReportTableRow[];
+    includedSections: string[];
+    recommendations: string[];
 };
 
 const reportSections = [
@@ -121,6 +156,396 @@ function ReportsOverviewChart() {
     );
 }
 
+function asFiniteNumber(value: unknown): number | null {
+    if (value === null || value === undefined || value === "") return null;
+    const numberValue = typeof value === "number" ? value : Number(value);
+    return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function formatReportNumber(value: unknown, unit = "", digits = 1) {
+    const numberValue = asFiniteNumber(value);
+    if (numberValue === null) return "--";
+    return `${numberValue.toFixed(digits)}${unit ? ` ${unit}` : ""}`;
+}
+
+function formatReportPercent(value: unknown, digits = 1) {
+    const numberValue = asFiniteNumber(value);
+    if (numberValue === null) return "--";
+    return `${numberValue.toFixed(digits)}%`;
+}
+
+function valueStatus(value: number | null, warning: boolean) {
+    if (value === null) return "pending";
+    return warning ? "review" : "normal";
+}
+
+function buildRecommendations(input: {
+    latestTelemetry: IotTelemetryReading | null;
+    rainfallWeather: WeatherRecord | null;
+    anomalySummary: AnomalySummary | null;
+    benchmarkResult: BenchmarkResponse | null;
+    cameraRecords: CameraRecord[];
+    aiReportSummary: AiReportSummaryResponse | null;
+}) {
+    const recommendations = new Set<string>();
+    const telemetry = input.latestTelemetry;
+    const anomalySummary = input.anomalySummary;
+    const latestCamera = input.cameraRecords[0];
+    const deviation = asFiniteNumber(input.benchmarkResult?.deviationPercent);
+
+    if (telemetry?.waterLevelPercent !== undefined && telemetry.waterLevelPercent < 25) {
+        recommendations.add("Storage is low. Inspect intake flow and reduce optional water usage until recovery is confirmed.");
+    }
+    if (telemetry?.ph !== undefined && (telemetry.ph < 6.5 || telemetry.ph > 8.5)) {
+        recommendations.add("pH is outside the normal range. Verify the pH probe and inspect the water source before use.");
+    }
+    if (telemetry?.turbidity !== undefined && telemetry.turbidity > 100) {
+        recommendations.add("Turbidity is elevated. Check the tank for sediment, debris, or filter blockage.");
+    }
+    if ((anomalySummary?.high ?? 0) > 0) {
+        recommendations.add("High-severity anomalies are active. Prioritize inspection and record the resolution action.");
+    } else if ((anomalySummary?.active ?? 0) > 0) {
+        recommendations.add("Review active anomalies and close resolved cases after physical verification.");
+    }
+    if (deviation !== null && deviation > 8) {
+        recommendations.add("Forecast deviation is above target. Recheck calibration and compare the forecast assumptions against recent rainfall.");
+    }
+    if (latestCamera && latestCamera.severity && latestCamera.severity !== "low" && latestCamera.severity !== "normal") {
+        recommendations.add("Camera analysis needs review. Check camera angle, lens clarity, lighting, and tank visibility.");
+    }
+    input.aiReportSummary?.recommendedActions?.forEach((action) => recommendations.add(action));
+
+    if (recommendations.size === 0) {
+        recommendations.add("Continue normal monitoring and keep telemetry, camera, forecast, and anomaly checks connected.");
+        recommendations.add("Use weekly exports to compare storage trend, rainfall input, and forecast deviation over time.");
+    }
+
+    return Array.from(recommendations).slice(0, 6);
+}
+
+function buildReportTemplateData(input: {
+    reportType: string;
+    tank: string;
+    dateRange: string;
+    generatedOn: string;
+    selectedSections: string[];
+    latestTelemetry: IotTelemetryReading | null;
+    rainfallWeather: WeatherRecord | null;
+    anomalySummary: AnomalySummary | null;
+    benchmarkResult: BenchmarkResponse | null;
+    cameraRecords: CameraRecord[];
+    aiReportSummary: AiReportSummaryResponse | null;
+}): ReportTemplateData {
+    const telemetry = input.latestTelemetry;
+    const anomalySummary = input.anomalySummary;
+    const cameraRecords = input.cameraRecords;
+    const latestCamera = cameraRecords[0];
+    const activeAnomalies = anomalySummary?.active ?? 0;
+    const forecastAccuracy = formatReportPercent(input.benchmarkResult?.accuracyPercent);
+    const forecastDeviation = formatReportPercent(input.benchmarkResult?.deviationPercent);
+    const storageLevel = formatReportPercent(telemetry?.waterLevelPercent);
+    const rainfallAmount = formatReportNumber(input.rainfallWeather?.rainfallAmount, "mm");
+    const phValue = formatReportNumber(telemetry?.ph, "pH", 2);
+    const turbidityValue = formatReportNumber(telemetry?.turbidity, "NTU");
+
+    const typeLower = input.reportType.toLowerCase();
+    const typeFocus = typeLower.includes("anomaly")
+        ? "The focus is anomaly severity, current case status, and recommended follow-up."
+        : typeLower.includes("benchmark")
+            ? "The focus is forecast accuracy against the latest observed ESP32 water-level reading."
+            : typeLower.includes("weekly")
+                ? "The focus is weekly operating performance across storage, weather, camera, and anomaly inputs."
+                : "The focus is the latest daily operating state and readiness of connected monitoring inputs.";
+
+    const executiveSummary = [
+        `${input.reportType} for ${input.tank} covers ${input.dateRange}.`,
+        telemetry
+            ? `Latest telemetry reports ${storageLevel} storage, ${phValue}, ${turbidityValue}, and ${formatReportNumber(telemetry.waterTemperature, "C")} water temperature.`
+            : "No ESP32 telemetry reading is available yet.",
+        input.rainfallWeather
+            ? `Saved rainfall input is ${rainfallAmount} with ${formatReportPercent(input.rainfallWeather.rainfallProbability, 0)} probability.`
+            : "Rainfall input is not available yet.",
+        input.benchmarkResult
+            ? `Forecast benchmark accuracy is ${forecastAccuracy} with ${forecastDeviation} deviation.`
+            : "Forecast benchmark has not been run for this session.",
+        activeAnomalies > 0
+            ? `${activeAnomalies} active anomaly case${activeAnomalies !== 1 ? "s" : ""} require review.`
+            : "No active anomaly case is currently reported.",
+        `${cameraRecords.length} camera record${cameraRecords.length !== 1 ? "s" : ""} are available for visual reference.`,
+        typeFocus,
+    ].join(" ");
+
+    const metricRows: ReportTableRow[] = [
+        {
+            metric: "Storage Level",
+            value: storageLevel,
+            remarks: telemetry ? "Latest ESP32 ultrasonic water-level reading." : "Waiting for ESP32 telemetry.",
+            status: valueStatus(asFiniteNumber(telemetry?.waterLevelPercent), Boolean(telemetry && telemetry.waterLevelPercent < 25)),
+        },
+        {
+            metric: "pH",
+            value: phValue,
+            remarks: telemetry ? "Water quality pH sensor reading." : "Waiting for water quality telemetry.",
+            status: valueStatus(asFiniteNumber(telemetry?.ph), Boolean(telemetry && (telemetry.ph < 6.5 || telemetry.ph > 8.5))),
+        },
+        {
+            metric: "Turbidity",
+            value: turbidityValue,
+            remarks: telemetry ? "Water clarity from turbidity sensor." : "Waiting for turbidity telemetry.",
+            status: valueStatus(asFiniteNumber(telemetry?.turbidity), Boolean(telemetry && telemetry.turbidity > 100)),
+        },
+        {
+            metric: "Rainfall",
+            value: rainfallAmount,
+            remarks: input.rainfallWeather?.weatherCondition ?? "Waiting for saved weather or rainfall input.",
+            status: input.rainfallWeather ? "ready" : "pending",
+        },
+        {
+            metric: "Camera Records",
+            value: String(cameraRecords.length),
+            remarks: latestCamera?.aiRecommendation ?? "Saved camera records and ML recommendations will appear after capture.",
+            status: cameraRecords.length > 0 ? "ready" : "pending",
+        },
+        {
+            metric: "Active Anomalies",
+            value: String(activeAnomalies),
+            remarks: activeAnomalies > 0 ? "Open anomaly cases are present." : "No active anomaly cases in the summary.",
+            status: activeAnomalies > 0 ? "review" : "normal",
+        },
+    ];
+
+    const forecastedLevel = formatReportPercent(input.benchmarkResult?.forecastedLevelPercent);
+    const observedLevel = formatReportPercent(input.benchmarkResult?.observedLevelPercent ?? telemetry?.waterLevelPercent);
+    const deviationNumber = asFiniteNumber(input.benchmarkResult?.deviationPercent);
+    const benchmarkRows: ReportTableRow[] = [
+        {
+            metric: "Storage Forecast",
+            value: forecastedLevel,
+            remarks: `Observed storage is ${observedLevel}. Deviation is ${forecastDeviation}.`,
+            status: input.benchmarkResult ? (deviationNumber !== null && deviationNumber > 8 ? "review" : "good") : "pending",
+        },
+        {
+            metric: "Forecast Accuracy",
+            value: forecastAccuracy,
+            remarks: input.benchmarkResult?.recommendation ?? "Run benchmark to compare forecast and observed telemetry.",
+            status: input.benchmarkResult ? "good" : "pending",
+        },
+        {
+            metric: "Rainfall Capture",
+            value: rainfallAmount,
+            remarks: input.rainfallWeather ? "Rainfall record is available for benchmark context." : "Rainfall record is pending.",
+            status: input.rainfallWeather ? "ready" : "pending",
+        },
+    ];
+
+    const anomalyRows: ReportTableRow[] = anomalySummary?.recent?.length
+        ? anomalySummary.recent.slice(0, 5).map((row) => ({
+            metric: row.title ?? "Anomaly",
+            value: row.valueText ?? row.severity ?? "--",
+            remarks: row.description ?? row.recommendation ?? "No anomaly description available.",
+            status: row.status ?? row.severity ?? "review",
+        }))
+        : [{
+            metric: "No Active Cases",
+            value: "0",
+            remarks: "No unresolved anomaly records were returned by the backend summary.",
+            status: "normal",
+        }];
+
+    return {
+        title: "Raincatcher Monitoring Report",
+        reportType: input.reportType,
+        tank: input.tank,
+        dateRange: input.dateRange,
+        generatedOn: input.generatedOn,
+        executiveSummary,
+        summaryCards: [
+            { label: "Report Type", value: input.reportType, meta: "Generated export" },
+            { label: "Tank Site", value: input.tank, meta: "Monitoring target" },
+            { label: "Date Range", value: input.dateRange, meta: "Selected coverage" },
+            { label: "Storage", value: storageLevel, meta: telemetry ? "Latest telemetry" : "Pending telemetry" },
+            { label: "Forecast Accuracy", value: forecastAccuracy, meta: input.benchmarkResult ? "Benchmark result" : "Benchmark pending" },
+            { label: "Anomalies", value: `${activeAnomalies} active`, meta: `${anomalySummary?.high ?? 0} high severity` },
+        ],
+        metricRows,
+        benchmarkRows,
+        anomalyRows,
+        includedSections: input.selectedSections,
+        recommendations: buildRecommendations(input),
+    };
+}
+
+function statusColor(status: string): [number, number, number] {
+    const normalized = status.toLowerCase();
+    if (["normal", "good", "ready", "resolved"].includes(normalized)) return [22, 163, 74];
+    if (["high", "critical"].includes(normalized)) return [220, 38, 38];
+    if (["pending", "review", "medium", "investigating"].includes(normalized)) return [176, 138, 69];
+    return [71, 85, 105];
+}
+
+function ensurePdfSpace(doc: jsPDF, y: number, requiredHeight: number, data: ReportTemplateData) {
+    const pageHeight = doc.internal.pageSize.getHeight();
+    if (y + requiredHeight <= pageHeight - 16) return y;
+
+    doc.addPage();
+    doc.setFillColor(176, 138, 69);
+    doc.rect(0, 0, doc.internal.pageSize.getWidth(), 16, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.text(data.title, 14, 10);
+    return 24;
+}
+
+function drawPdfTable(doc: jsPDF, data: ReportTemplateData, title: string, rows: ReportTableRow[], startY: number) {
+    const marginX = 14;
+    const tableWidth = doc.internal.pageSize.getWidth() - marginX * 2;
+    const widths = [38, 30, tableWidth - 38 - 30 - 28, 28];
+    let y = ensurePdfSpace(doc, startY, 20, data);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(11, 18, 32);
+    doc.text(title, marginX, y);
+    y += 6;
+
+    doc.setFillColor(176, 138, 69);
+    doc.rect(marginX, y, tableWidth, 8, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(8);
+    ["Metric", "Value", "Remarks", "Status"].forEach((header, index) => {
+        const x = marginX + widths.slice(0, index).reduce((sum, width) => sum + width, 0) + 2;
+        doc.text(header, x, y + 5);
+    });
+    y += 8;
+
+    rows.forEach((row, index) => {
+        const metricLines = doc.splitTextToSize(row.metric, widths[0] - 4);
+        const valueLines = doc.splitTextToSize(row.value, widths[1] - 4);
+        const remarksLines = doc.splitTextToSize(row.remarks, widths[2] - 4);
+        const rowHeight = Math.max(11, Math.max(metricLines.length, valueLines.length, remarksLines.length) * 4 + 5);
+        y = ensurePdfSpace(doc, y, rowHeight + 4, data);
+
+        doc.setFillColor(index % 2 === 0 ? 248 : 255, index % 2 === 0 ? 250 : 255, index % 2 === 0 ? 252 : 255);
+        doc.rect(marginX, y, tableWidth, rowHeight, "F");
+        doc.setDrawColor(226, 232, 240);
+        doc.rect(marginX, y, tableWidth, rowHeight);
+
+        doc.setTextColor(15, 23, 42);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
+        doc.text(metricLines, marginX + 2, y + 5);
+        doc.setFont("helvetica", "normal");
+        doc.text(valueLines, marginX + widths[0] + 2, y + 5);
+        doc.text(remarksLines, marginX + widths[0] + widths[1] + 2, y + 5);
+
+        const [r, g, b] = statusColor(row.status);
+        doc.setTextColor(r, g, b);
+        doc.setFont("helvetica", "bold");
+        doc.text(doc.splitTextToSize(row.status, widths[3] - 4), marginX + widths[0] + widths[1] + widths[2] + 2, y + 5);
+        y += rowHeight;
+    });
+
+    return y + 8;
+}
+
+function drawReportPdf(doc: jsPDF, data: ReportTemplateData) {
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const marginX = 14;
+    let y = 0;
+
+    doc.setFillColor(176, 138, 69);
+    doc.rect(0, 0, pageWidth, 40, "F");
+    doc.setFillColor(143, 103, 40);
+    doc.circle(pageWidth - 24, 12, 10, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(17);
+    doc.text(data.title, marginX, 14);
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Generated: ${data.generatedOn}`, marginX, 23);
+    doc.text(`${data.reportType} | ${data.tank}`, marginX, 29);
+
+    y = 50;
+    const cardGap = 4;
+    const cardWidth = (pageWidth - marginX * 2 - cardGap * 2) / 3;
+    data.summaryCards.forEach((card, index) => {
+        const x = marginX + (index % 3) * (cardWidth + cardGap);
+        const row = Math.floor(index / 3);
+        const cardY = y + row * 22;
+        doc.setFillColor(248, 250, 252);
+        doc.setDrawColor(219, 226, 236);
+        doc.roundedRect(x, cardY, cardWidth, 17, 2, 2, "FD");
+        doc.setTextColor(71, 85, 105);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(6.5);
+        doc.text(card.label, x + 3, cardY + 5);
+        doc.setTextColor(15, 23, 42);
+        doc.setFontSize(8);
+        doc.text(doc.splitTextToSize(card.value, cardWidth - 6).slice(0, 1), x + 3, cardY + 10);
+        doc.setTextColor(100, 116, 139);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(6);
+        doc.text(doc.splitTextToSize(card.meta, cardWidth - 6).slice(0, 1), x + 3, cardY + 14);
+    });
+
+    y += 48;
+    doc.setDrawColor(217, 190, 126);
+    doc.setFillColor(255, 251, 235);
+    doc.roundedRect(marginX, y, pageWidth - marginX * 2, 28, 3, 3, "FD");
+    doc.setTextColor(11, 18, 32);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("Executive Summary", marginX + 4, y + 8);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.text(doc.splitTextToSize(data.executiveSummary, pageWidth - marginX * 2 - 8).slice(0, 4), marginX + 4, y + 15);
+
+    y += 38;
+    y = drawPdfTable(doc, data, "Monitoring Metrics", data.metricRows, y);
+    y = drawPdfTable(doc, data, "Forecast and Actual Benchmark", data.benchmarkRows, y);
+    y = drawPdfTable(doc, data, "Anomaly Review", data.anomalyRows, y);
+
+    y = ensurePdfSpace(doc, y, 36, data);
+    doc.setTextColor(11, 18, 32);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("Included Report Sections", marginX, y);
+    y += 7;
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "normal");
+    let tagX = marginX;
+    data.includedSections.forEach((section) => {
+        const width = Math.min(56, doc.getTextWidth(section) + 8);
+        if (tagX + width > pageWidth - marginX) {
+            tagX = marginX;
+            y += 9;
+        }
+        doc.setFillColor(255, 251, 235);
+        doc.setDrawColor(217, 190, 126);
+        doc.roundedRect(tagX, y - 5, width, 7, 2, 2, "FD");
+        doc.setTextColor(146, 103, 32);
+        doc.text(section, tagX + 4, y);
+        tagX += width + 3;
+    });
+
+    y += 14;
+    y = ensurePdfSpace(doc, y, 38, data);
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(203, 213, 225);
+    doc.roundedRect(marginX, y, pageWidth - marginX * 2, 34, 3, 3, "FD");
+    doc.setFillColor(176, 138, 69);
+    doc.rect(marginX, y, 1.5, 34, "F");
+    doc.setTextColor(11, 18, 32);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("Recommendation Summary", marginX + 5, y + 8);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.text(doc.splitTextToSize(data.recommendations.map((item) => `- ${item}`).join(" "), pageWidth - marginX * 2 - 12).slice(0, 5), marginX + 5, y + 15);
+}
+
 export default function ReportsPage() {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [previewOpen, setPreviewOpen] = useState(false);
@@ -133,6 +558,8 @@ export default function ReportsPage() {
     const [reportSummary, setReportSummary] = useState<ReportSummary | null>(null);
     const [aiReportSummary, setAiReportSummary] = useState<AiReportSummaryResponse | null>(null);
     const [reportHistory, setReportHistory] = useState<ReportRecord[]>([]);
+    const [anomalySummary, setAnomalySummary] = useState<AnomalySummary | null>(null);
+    const [cameraRecords, setCameraRecords] = useState<CameraRecord[]>([]);
     const [benchmarkResult, setBenchmarkResult] = useState<BenchmarkResponse | null>(null);
     const [benchmarkLoading, setBenchmarkLoading] = useState(false);
     const [benchmarkError, setBenchmarkError] = useState("");
@@ -157,14 +584,24 @@ export default function ReportsPage() {
     useEffect(() => {
         let active = true;
 
-        Promise.allSettled([getLatestTelemetry(), getRainfallWeather(), getReportSummary(), getReportHistory(), getReportAiSummary()])
-            .then(([telemetryResult, weatherResult, summaryResult, historyResult, aiSummaryResult]) => {
+        Promise.allSettled([
+            getLatestTelemetry(),
+            getRainfallWeather(),
+            getReportSummary(),
+            getReportHistory(),
+            getReportAiSummary(),
+            getAnomalySummary(),
+            getCameraRecordHistory(),
+        ])
+            .then(([telemetryResult, weatherResult, summaryResult, historyResult, aiSummaryResult, anomalyResult, cameraResult]) => {
                 if (!active) return;
                 if (telemetryResult.status === "fulfilled") setLatestTelemetry(telemetryResult.value);
                 if (weatherResult.status === "fulfilled") setRainfallWeather(weatherResult.value);
                 if (summaryResult.status === "fulfilled") setReportSummary(summaryResult.value);
                 if (historyResult.status === "fulfilled") setReportHistory(historyResult.value);
                 if (aiSummaryResult.status === "fulfilled") setAiReportSummary(aiSummaryResult.value);
+                if (anomalyResult.status === "fulfilled") setAnomalySummary(anomalyResult.value);
+                if (cameraResult.status === "fulfilled") setCameraRecords(cameraResult.value);
             });
 
         fetch(buildBackendUrl("/api/reports/readiness"))
@@ -292,13 +729,48 @@ export default function ReportsPage() {
         tone: (["blue", "red", "orange", "green"] as const)[index],
     }));
 
-    const pendingReport = createPendingReportRow(reportType);
+    const reportTemplateData = useMemo(() => buildReportTemplateData({
+        reportType,
+        tank: RAINWATER_TANK_NAME,
+        dateRange,
+        generatedOn,
+        selectedSections,
+        latestTelemetry,
+        rainfallWeather,
+        anomalySummary,
+        benchmarkResult,
+        cameraRecords,
+        aiReportSummary,
+    }), [
+        reportType,
+        dateRange,
+        generatedOn,
+        selectedSections,
+        latestTelemetry,
+        rainfallWeather,
+        anomalySummary,
+        benchmarkResult,
+        cameraRecords,
+        aiReportSummary,
+    ]);
 
     async function generatePdfReport() {
         setPdfGenerating(true);
         setReportsActionMessage("");
 
         try {
+            let benchmarkForPdf = benchmarkResult;
+            if (!benchmarkForPdf && latestTelemetry) {
+                try {
+                    benchmarkForPdf = await getBenchmarkForecast({
+                        observedLevelPercent: latestTelemetry.waterLevelPercent,
+                    });
+                    setBenchmarkResult(benchmarkForPdf);
+                } catch {
+                    benchmarkForPdf = null;
+                }
+            }
+
             const savedReport = await generateReport({
                 reportType,
                 tankId: RAINWATER_TANK_NAME,
@@ -307,32 +779,21 @@ export default function ReportsPage() {
             });
             setReportHistory((prev) => [savedReport, ...prev.filter((item) => item.id !== savedReport.id)]);
 
+            const pdfData = buildReportTemplateData({
+                reportType,
+                tank: RAINWATER_TANK_NAME,
+                dateRange,
+                generatedOn,
+                selectedSections,
+                latestTelemetry,
+                rainfallWeather,
+                anomalySummary,
+                benchmarkResult: benchmarkForPdf,
+                cameraRecords,
+                aiReportSummary,
+            });
             const doc = new jsPDF("p", "mm", "a4");
-            const pageWidth = doc.internal.pageSize.getWidth();
-            const marginX = 14;
-
-            doc.setFillColor(176, 138, 69);
-            doc.rect(0, 0, pageWidth, 38, "F");
-            doc.setTextColor(255, 255, 255);
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(18);
-            doc.text("Raincatcher Report Placeholder", marginX, 16);
-            doc.setFontSize(9);
-            doc.text(`Generated: ${generatedOn}`, marginX, 26);
-
-            doc.setTextColor(11, 18, 32);
-            doc.setFontSize(14);
-            doc.text(reportType, marginX, 52);
-            doc.setFont("helvetica", "normal");
-            doc.setFontSize(10);
-            doc.text(`Tank: ${RAINWATER_TANK_NAME}`, marginX, 62);
-            doc.text(`Date range: ${dateRange}`, marginX, 70);
-            doc.text(
-                "Real report metrics will be populated after telemetry, camera, forecast, and anomaly services are connected.",
-                marginX,
-                84,
-                { maxWidth: pageWidth - marginX * 2 },
-            );
+            drawReportPdf(doc, pdfData);
 
             doc.save(`${reportType.toLowerCase().replaceAll(" ", "-")}.pdf`);
             setPdfGenerated(true);
@@ -966,52 +1427,73 @@ export default function ReportsPage() {
 
                         <div className="reports-pdf-preview">
                             <div className="reports-pdf-cover">
-                                <h1>Raincatcher Monitoring Report</h1>
-                                <p>{pendingReport.range}</p>
-                                <span>{pendingReport.tanks}</span>
+                                <h1>{reportTemplateData.title}</h1>
+                                <p>{reportTemplateData.reportType} - {reportTemplateData.dateRange}</p>
+                                <span>{reportTemplateData.tank}</span>
+                            </div>
+
+                            <div className="reports-pdf-section reports-pdf-section-accent">
+                                <h3>Executive Summary</h3>
+                                <p>{reportTemplateData.executiveSummary}</p>
                             </div>
 
                             <div className="reports-pdf-section">
-                                <h3>Input Status</h3>
-
+                                <h3>Report Metrics</h3>
                                 <div className="reports-pdf-metrics">
-                                    <div>
-                                        <span>Generated</span>
-                                        <strong>{pendingReport.generatedOn}</strong>
-                                    </div>
-
-                                    <div>
-                                        <span>Storage</span>
-                                        <strong>--</strong>
-                                    </div>
-
-                                    <div>
-                                        <span>Water Quality</span>
-                                        <strong>--</strong>
-                                    </div>
-
-                                    <div>
-                                        <span>Anomalies</span>
-                                        <strong>0</strong>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="reports-pdf-section">
-                                <h3>Included Sections</h3>
-
-                                <div className="reports-pdf-tags">
-                                    {selectedSections.map((section) => (
-                                        <span key={section}>{section}</span>
+                                    {reportTemplateData.summaryCards.map((card) => (
+                                        <div key={card.label}>
+                                            <span>{card.label}</span>
+                                            <strong>{card.value}</strong>
+                                            <small>{card.meta}</small>
+                                        </div>
                                     ))}
                                 </div>
                             </div>
 
                             <div className="reports-pdf-section">
+                                <h3>Monitoring Metrics</h3>
+                                <div className="reports-pdf-table-preview">
+                                    {reportTemplateData.metricRows.slice(0, 5).map((row) => (
+                                        <div key={row.metric}>
+                                            <strong>{row.metric}</strong>
+                                            <span>{row.value}</span>
+                                            <p>{row.remarks}</p>
+                                            <em>{row.status}</em>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="reports-pdf-section">
+                                <h3>Forecast and Anomaly Review</h3>
+                                <div className="reports-pdf-table-preview compact">
+                                    {[...reportTemplateData.benchmarkRows, ...reportTemplateData.anomalyRows.slice(0, 3)].map((row) => (
+                                        <div key={`${row.metric}-${row.value}`}>
+                                            <strong>{row.metric}</strong>
+                                            <span>{row.value}</span>
+                                            <p>{row.remarks}</p>
+                                            <em>{row.status}</em>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="reports-pdf-section">
+                                <h3>Included Sections</h3>
+                                <div className="reports-pdf-tags">
+                                    {reportTemplateData.includedSections.map((section) => (
+                                        <span key={section}>{section}</span>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="reports-pdf-section reports-pdf-section-accent">
                                 <h3>Recommendation Summary</h3>
-                                <p>
-                                    AI-generated report recommendations will appear after telemetry, forecast, weather, and anomaly services are connected.
-                                </p>
+                                <ul className="reports-pdf-recommendations">
+                                    {reportTemplateData.recommendations.map((item) => (
+                                        <li key={item}>{item}</li>
+                                    ))}
+                                </ul>
                             </div>
                         </div>
 

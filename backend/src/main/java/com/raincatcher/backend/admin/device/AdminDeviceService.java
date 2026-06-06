@@ -111,7 +111,7 @@ public class AdminDeviceService {
         if (tag == null) return entity.getStatus() != null ? entity.getStatus() : "Pending";
         String url = switch (tag) {
             case "camera_service" -> "http://192.168.100.137:5050/health";
-            case "yolo_service"   -> "http://192.168.100.137:5051/health";
+            case "yolo_service"   -> "http://192.168.100.137:5050/health";
             default               -> null;
         };
         if (url == null) return entity.getStatus() != null ? entity.getStatus() : "Pending";
@@ -149,7 +149,7 @@ public class AdminDeviceService {
         if (repository.count() > 0) return;
         createSeed("Raspberry Pi 5 Edge Gateway", "Gateway", "Online", "Live session", "Spring Boot backend reachable", null);
         createSeed("USB Webcam", "Camera", "Pending", "Awaiting camera check", "Camera service proxy configured at :5050/capture", "camera_service");
-        createSeed("YOLO Analyzer", "ML Service", "Pending", "Awaiting YOLO check", "YOLO service proxy configured at :5051/analyze-latest", "yolo_service");
+        createSeed("YOLO Analyzer", "ML Service", "Pending", "Awaiting YOLO check", "YOLO service proxy configured at :5050/yolo-detect", "yolo_service");
         createSeed("ESP32 Sensor Node", "Sensor node", "Offline", "No telemetry received", "Waiting for ESP32 POST to /api/iot/telemetry", "esp32");
         createSeed("pH Sensor", "Water quality", "Pending", "Awaiting telemetry", "Input tag ready", "ph");
         createSeed("Turbidity Sensor", "Water quality", "Pending", "Awaiting telemetry", "Input tag ready", "turbidity");

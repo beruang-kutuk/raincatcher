@@ -19,11 +19,11 @@ const bool TEST_MODE = false;
 #define LED_PIN 2
 
 // Network / backend.
-const char *WIFI_SSID = "jasminejuliajemima 2.4G";
+const char *WIFI_SSID = "Raincatcher";
 const char *WIFI_PASSWORD = "0123456789";
-const char *BACKEND_TELEMETRY_URL = "http://192.168.100.137:8080/api/iot/telemetry";
-const char *BACKEND_HOST = "192.168.100.137";
+const char *BACKEND_HOST = "192.168.0.200";
 const uint16_t BACKEND_PORT = 8080;
+const char *BACKEND_TELEMETRY_URL = "http://192.168.0.200:8080/api/iot/telemetry";
 const char *DEVICE_ID = "RC-01";
 const char *TANK_ID = "TANK_A";
 const char *DEVICE_KEY = "raincatcher-device-key";

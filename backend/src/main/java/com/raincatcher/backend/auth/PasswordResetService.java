@@ -22,6 +22,7 @@ public class PasswordResetService {
 
     private static final int TOKEN_BYTES = 32;
     private static final int EXPIRY_MINUTES = 30;
+    private static final String DEFAULT_FRONTEND_BASE_URL = "http://192.168.100.130:5173";
 
     private final UserRepository userRepository;
     private final PasswordResetTokenRepository tokenRepository;
@@ -35,13 +36,13 @@ public class PasswordResetService {
             PasswordResetTokenRepository tokenRepository,
             PasswordEncoder passwordEncoder,
             EmailService emailService,
-            @Value("${app.frontend-base-url:http://localhost:5173}") String frontendBaseUrl
+            @Value("${app.frontend-base-url:" + DEFAULT_FRONTEND_BASE_URL + "}") String frontendBaseUrl
     ) {
         this.userRepository = userRepository;
         this.tokenRepository = tokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.emailService = emailService;
-        this.frontendBaseUrl = trimTrailingSlash(frontendBaseUrl == null ? "" : frontendBaseUrl.trim());
+        this.frontendBaseUrl = normaliseFrontendBaseUrl(frontendBaseUrl);
     }
 
     @Transactional
@@ -122,10 +123,18 @@ public class PasswordResetService {
         return password != null && password.length() >= 8;
     }
 
+    private String normaliseFrontendBaseUrl(String value) {
+        String cleaned = value == null ? "" : value.trim();
+        if (cleaned.isBlank()) {
+            cleaned = DEFAULT_FRONTEND_BASE_URL;
+        }
+        return trimTrailingSlash(cleaned);
+    }
+
     private String trimTrailingSlash(String value) {
         if (value.endsWith("/")) {
             return value.substring(0, value.length() - 1);
         }
-        return value.isBlank() ? "http://localhost:5173" : value;
+        return value.isBlank() ? DEFAULT_FRONTEND_BASE_URL : value;
     }
 }

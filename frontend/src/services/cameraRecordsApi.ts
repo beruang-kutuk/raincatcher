@@ -84,14 +84,33 @@ export function getLatestYoloRecord() {
 
 export function normaliseCameraImageUrl(url: string | null | undefined) {
     if (!url) return "";
-    if (url.includes("/api/camera/latest-frame")) return buildBackendUrl("/api/camera-frame/latest");
-    if (url.includes("/api/camera/yolo-frame")) return buildBackendUrl("/api/camera-frame/yolo");
-    if (url.startsWith("/api/")) return buildBackendUrl(url);
-    return url;
+    const trimmedUrl = url.trim();
+    if (!trimmedUrl) return "";
+    if (trimmedUrl.startsWith("data:image/")) return trimmedUrl;
+    if (looksLikeBase64Image(trimmedUrl)) return `data:image/jpeg;base64,${trimmedUrl}`;
+    if (trimmedUrl.includes("/api/camera/latest-frame")) return buildBackendUrl("/api/camera-frame/latest");
+    if (trimmedUrl.includes("/api/camera/yolo-frame")) return buildBackendUrl("/api/camera-frame/yolo");
+    if (trimmedUrl.includes("/api/camera/captured/")) {
+        const filename = trimmedUrl.slice(trimmedUrl.lastIndexOf("/") + 1);
+        return buildBackendUrl(`/api/camera-frame/captured/${filename}`);
+    }
+    if (trimmedUrl.includes("/captured/")) {
+        const filename = trimmedUrl.slice(trimmedUrl.lastIndexOf("/") + 1);
+        return buildBackendUrl(`/api/camera-frame/captured/${filename}`);
+    }
+    if (trimmedUrl.startsWith("/api/camera-frame/")) return buildBackendUrl(trimmedUrl);
+    if (trimmedUrl.startsWith("/api/")) return buildBackendUrl(trimmedUrl);
+    return trimmedUrl;
 }
 
 export function withImageCacheBust(url: string | null | undefined) {
     const normalisedUrl = normaliseCameraImageUrl(url);
     if (!normalisedUrl) return "";
+    if (normalisedUrl.startsWith("data:image/")) return normalisedUrl;
     return `${normalisedUrl}${normalisedUrl.includes("?") ? "&" : "?"}t=${Date.now()}`;
+}
+
+function looksLikeBase64Image(value: string) {
+    if (value.length < 80 || /\s/.test(value)) return false;
+    return value.startsWith("/9j/") || value.startsWith("iVBOR") || value.startsWith("R0lGOD") || value.startsWith("UklGR");
 }

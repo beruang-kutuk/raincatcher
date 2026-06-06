@@ -692,7 +692,7 @@
 }
 
 .reports-pdf-cover {
-    background: linear-gradient(135deg, var(--purple), var(--purple2));
+    background: linear-gradient(135deg, #b08a45, #8f6728);
     color: #fff;
     border-radius: 18px;
     padding: 24px;
@@ -741,9 +741,14 @@
     line-height: 1.6;
 }
 
+.reports-pdf-section-accent {
+    border-color: rgba(176, 138, 69, 0.28);
+    background: #fffbeb;
+}
+
 .reports-pdf-metrics {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 10px;
 }
 
@@ -764,6 +769,66 @@
     font-size: 18px;
 }
 
+.reports-pdf-metrics small {
+    display: block;
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.35;
+}
+
+.reports-pdf-table-preview {
+    display: grid;
+    gap: 8px;
+}
+
+.reports-pdf-table-preview div {
+    display: grid;
+    grid-template-columns: minmax(110px, 0.8fr) minmax(76px, 0.45fr) minmax(0, 1.5fr) 72px;
+    gap: 10px;
+    align-items: start;
+    padding: 10px 12px;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 10px;
+    background: #fff;
+}
+
+.reports-pdf-table-preview.compact div {
+    grid-template-columns: minmax(110px, 0.8fr) minmax(70px, 0.45fr) minmax(0, 1.4fr) 76px;
+}
+
+.reports-pdf-table-preview strong,
+.reports-pdf-table-preview span,
+.reports-pdf-table-preview em {
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+.reports-pdf-table-preview strong {
+    color: var(--text);
+}
+
+.reports-pdf-table-preview span {
+    color: var(--text);
+    font-weight: 800;
+}
+
+.reports-pdf-table-preview p {
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.reports-pdf-table-preview em {
+    justify-self: start;
+    border-radius: 999px;
+    background: #fffbeb;
+    color: #926720;
+    padding: 4px 8px;
+    font-style: normal;
+    font-weight: 800;
+    text-transform: capitalize;
+}
+
 .reports-pdf-tags {
     display: flex;
     flex-wrap: wrap;
@@ -772,11 +837,23 @@
 
 .reports-pdf-tags span {
     border-radius: 999px;
-    background: color-mix(in srgb, var(--purple) 8%, transparent);
-    color: var(--purple);
+    background: #fffbeb;
+    color: #926720;
     padding: 8px 12px;
     font-size: 13px;
     font-weight: 800;
+}
+
+.reports-pdf-recommendations {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--muted);
+    line-height: 1.55;
+    font-size: 13px;
+}
+
+.reports-pdf-recommendations li + li {
+    margin-top: 6px;
 }
 
 .reports-preview-actions {
@@ -854,6 +931,11 @@
 
     .reports-pdf-metrics {
         grid-template-columns: repeat(2, 1fr);
+    }
+
+    .reports-pdf-table-preview div,
+    .reports-pdf-table-preview.compact div {
+        grid-template-columns: 1fr;
     }
 
     .reports-generate-actions {

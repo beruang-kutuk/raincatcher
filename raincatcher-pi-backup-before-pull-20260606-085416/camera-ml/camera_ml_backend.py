@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, Response, send_from_directory
+from flask import Flask, jsonify, Response
 from flask_cors import CORS
 from datetime import datetime
 from ultralytics import YOLO
@@ -11,17 +11,13 @@ CORS(app)
 
 CAMERA_DEVICE = "/dev/video0"
 CAPTURE_DIR = "/home/raincatcher/raincatcher-pi/camera-ml/captured_images"
-CUSTOM_MODEL_PATH = "/home/raincatcher/raincatcher-pi/camera-ml/raincatcher_yolo_best.pt"
-DEFAULT_MODEL_PATH = "/home/raincatcher/raincatcher-pi/camera-ml/yolo11n.pt"
-
-YOLO_MODEL_PATH = CUSTOM_MODEL_PATH if os.path.exists(CUSTOM_MODEL_PATH) else DEFAULT_MODEL_PATH
+YOLO_MODEL_PATH = "yolo11n.pt"
 
 os.makedirs(CAPTURE_DIR, exist_ok=True)
 
-print(f"Loading YOLO model from: {YOLO_MODEL_PATH}")
+print("Loading YOLO model...")
 yolo_model = YOLO(YOLO_MODEL_PATH)
 print("YOLO model loaded.")
-print(f"YOLO class names: {yolo_model.names}")
 
 
 def open_camera():
@@ -98,20 +94,6 @@ def analyse_frame(frame):
     }
 
 
-def save_captured_frame(frame, prefix="rainwater_tank"):
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    filename = f"{prefix}_{timestamp}.jpg"
-    filepath = os.path.join(CAPTURE_DIR, filename)
-
-    cv2.imwrite(filepath, frame)
-
-    return {
-        "filename": filename,
-        "filepath": filepath,
-        "image_url": f"/api/camera/captured/{filename}",
-    }
-
-
 def run_yolo_detection(frame):
     results = yolo_model(frame, imgsz=320, conf=0.35, verbose=False)
 
@@ -180,8 +162,6 @@ def home():
             "/capture",
             "/api/camera/latest-frame",
             "/latest-frame",
-            "/api/camera/captured/<filename>",
-            "/captured/<filename>",
             "/api/camera/yolo-detect",
             "/yolo-detect",
             "/api/camera/yolo-frame",
@@ -217,9 +197,7 @@ def analyse_camera():
             "camera_device": CAMERA_DEVICE
         }), 500
 
-    analysis = analyse_frame(frame)
-    analysis.update(save_captured_frame(frame, "rainwater_tank_analysis"))
-    return jsonify(analysis)
+    return jsonify(analyse_frame(frame))
 
 
 @app.route("/capture", methods=["GET", "POST"])
@@ -233,30 +211,20 @@ def capture_image():
             "camera_device": CAMERA_DEVICE
         }), 500
 
-    image_meta = save_captured_frame(frame, "rainwater_tank")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"rainwater_tank_{timestamp}.jpg"
+    filepath = os.path.join(CAPTURE_DIR, filename)
+
+    cv2.imwrite(filepath, frame)
 
     return jsonify({
         "message": "Image captured successfully",
-        **image_meta,
+        "filename": filename,
+        "filepath": filepath,
         "tank": "Rainwater Tank",
         "timestamp": datetime.now().isoformat(timespec="seconds"),
         "analysis": analyse_frame(frame)
     })
-
-
-@app.route("/captured/<path:filename>")
-@app.route("/api/camera/captured/<path:filename>")
-def captured_image(filename):
-    safe_filename = os.path.basename(filename)
-    filepath = os.path.join(CAPTURE_DIR, safe_filename)
-
-    if not os.path.exists(filepath):
-        return jsonify({
-            "error": "Captured image not found",
-            "filename": safe_filename
-        }), 404
-
-    return send_from_directory(CAPTURE_DIR, safe_filename, mimetype="image/jpeg")
 
 
 @app.route("/latest-frame")
@@ -304,18 +272,11 @@ def yolo_detect():
 
     basic_analysis = analyse_frame(frame)
     yolo_result = run_yolo_detection(frame)
-    yolo_image = save_captured_frame(annotate_yolo_frame(frame), "rainwater_tank_yolo")
-    yolo_result.update({
-        "frame_url": yolo_image["image_url"],
-        "frame_filename": yolo_image["filename"],
-        "frame_filepath": yolo_image["filepath"],
-    })
 
     return jsonify({
         "camera_source": "Raspberry Pi 5 USB Webcam",
         "tank": "Rainwater Tank",
         "timestamp": datetime.now().isoformat(timespec="seconds"),
-        "yolo_frame_url": yolo_image["image_url"],
         "basic_analysis": basic_analysis,
         "yolo": yolo_result
     })
@@ -359,14 +320,3 @@ if __name__ == "__main__":
     print("Starting Raincatcher Camera ML Backend with YOLO...")
     print("Open from laptop: http://192.168.100.137:5050")
     app.run(host="0.0.0.0", port=5050, debug=False)
-
-DEFAULT_MODEL_PATH = "/home/raincatcher/raincatcher-pi/camera-ml/yolo11n.pt"
-CUSTOM_MODEL_PATH = "/home/raincatcher/raincatcher-pi/camera-ml/raincatcher_yolo_best.pt"
-
-YOLO_MODEL_PATH = os.environ.get("RAINCATCHER_YOLO_MODEL", CUSTOM_MODEL_PATH)
-
-if not os.path.exists(YOLO_MODEL_PATH):
-    print(f"Custom YOLO model not found at {YOLO_MODEL_PATH}. Falling back to {DEFAULT_MODEL_PATH}")
-    YOLO_MODEL_PATH = DEFAULT_MODEL_PATH
-
-print(f"Loading YOLO model from: {YOLO_MODEL_PATH}")

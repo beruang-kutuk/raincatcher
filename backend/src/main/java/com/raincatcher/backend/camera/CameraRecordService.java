@@ -10,7 +10,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.util.UriUtils;
 
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
@@ -35,7 +38,7 @@ public class CameraRecordService {
             CameraRecordRepository repository,
             ObjectMapper objectMapper,
             NotificationService notificationService,
-            @Value("${ml.service.base-url:http://192.168.100.137:5051}") String rpiBaseUrl
+            @Value("${ml.service.base-url:http://192.168.100.137:5050}") String rpiBaseUrl
     ) {
         this.repository = repository;
         this.objectMapper = objectMapper;
@@ -74,6 +77,7 @@ public class CameraRecordService {
         applyMetrics(record, response.path("metrics"));
         record.setAiRecommendation(text(response, "ai_recommendation"));
         record.setFutureNote(text(response, "future_ml_note"));
+        record.setImageUrl(firstNonBlank(capturedImageUrl(response), getLatestFrameUrl()));
 
         CameraRecordEntity saved = repository.save(record);
         notificationService.createOrUpdateFromCameraRecord(saved);
@@ -93,6 +97,7 @@ public class CameraRecordService {
         applyMetrics(record, analysis.path("metrics"));
         record.setAiRecommendation(firstText(response, "message", analysis, "ai_recommendation"));
         record.setFutureNote(buildCaptureMetadata(response));
+        record.setImageUrl(firstNonBlank(capturedImageUrl(response), capturedImageUrl(analysis), getLatestFrameUrl()));
 
         CameraRecordEntity saved = repository.save(record);
         notificationService.createOrUpdateFromCameraRecord(saved);
@@ -117,7 +122,9 @@ public class CameraRecordService {
         record.setDetectionsJson(jsonString(yolo.path("detections")));
         record.setAiRecommendation(yoloRecommendation(yolo));
         record.setFutureNote(text(yolo, "future_training_note"));
-        record.setYoloFrameUrl(getYoloFrameUrl());
+        String yoloFrameUrl = firstNonBlank(capturedImageUrl(yolo), cameraFrameProxyUrl(text(response, "yolo_frame_url")), getYoloFrameUrl());
+        record.setImageUrl(yoloFrameUrl);
+        record.setYoloFrameUrl(yoloFrameUrl);
 
         CameraRecordEntity saved = repository.save(record);
         notificationService.createOrUpdateFromYoloRecord(saved);
@@ -125,19 +132,23 @@ public class CameraRecordService {
     }
 
     public Optional<CameraRecordEntity> getLatestRecord() {
-        return repository.findTopByOrderByCreatedAtDesc();
+        return repository.findTopByOrderByCreatedAtDesc().map(this::withResolvedImageUrls);
     }
 
     public List<CameraRecordEntity> getHistory() {
-        return repository.findTop50ByOrderByCreatedAtDesc();
+        return repository.findTop50ByOrderByCreatedAtDesc().stream()
+                .map(this::withResolvedImageUrls)
+                .toList();
     }
 
     public Optional<CameraRecordEntity> getLatestAnalysis() {
-        return repository.findTopByRecordTypeOrderByCreatedAtDesc(RECORD_TYPE_BASIC_ANALYSIS);
+        return repository.findTopByRecordTypeOrderByCreatedAtDesc(RECORD_TYPE_BASIC_ANALYSIS)
+                .map(this::withResolvedImageUrls);
     }
 
     public Optional<CameraRecordEntity> getLatestYolo() {
-        return repository.findTopByRecordTypeOrderByCreatedAtDesc(RECORD_TYPE_YOLO_DETECTION);
+        return repository.findTopByRecordTypeOrderByCreatedAtDesc(RECORD_TYPE_YOLO_DETECTION)
+                .map(this::withResolvedImageUrls);
     }
 
     private CameraRecordEntity baseRecord(String recordType) {
@@ -200,6 +211,134 @@ public class CameraRecordService {
 
     private String getYoloFrameUrl() {
         return "/api/camera-frame/yolo";
+    }
+
+    private String getCapturedFrameUrl(String filename) {
+        if (filename == null || filename.isBlank()) {
+            return null;
+        }
+        String cleaned = filename.trim().replace("\\", "/");
+        int slashIndex = cleaned.lastIndexOf("/");
+        if (slashIndex >= 0) {
+            cleaned = cleaned.substring(slashIndex + 1);
+        }
+        if (cleaned.isBlank()) {
+            return null;
+        }
+        return "/api/camera-frame/captured/" + UriUtils.encodePathSegment(cleaned, StandardCharsets.UTF_8);
+    }
+
+    private String capturedImageUrl(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return null;
+        }
+
+        String directUrl = firstTextValue(node, "image_url", "imageUrl", "frame_url", "latest_frame_url", "yolo_frame_url");
+        String proxied = cameraFrameProxyUrl(directUrl);
+        if (proxied != null) {
+            return proxied;
+        }
+
+        String filename = firstTextValue(node, "filename", "image_filename", "saved_filename");
+        String fromFilename = getCapturedFrameUrl(filename);
+        if (fromFilename != null) {
+            return fromFilename;
+        }
+
+        return capturedFrameUrlFromPath(firstTextValue(node, "filepath", "saved_path"));
+    }
+
+    private String cameraFrameProxyUrl(String rawUrl) {
+        if (rawUrl == null || rawUrl.isBlank()) {
+            return null;
+        }
+
+        String url = rawUrl.trim();
+        if (url.startsWith("data:image/")) {
+            return url;
+        }
+        if (url.contains("/api/camera-frame/latest") || url.contains("/api/camera/latest-frame")) {
+            return getLatestFrameUrl();
+        }
+        if (url.contains("/api/camera-frame/yolo") || url.contains("/api/camera/yolo-frame")) {
+            return getYoloFrameUrl();
+        }
+        if (url.contains("/api/camera/captured/")) {
+            return getCapturedFrameUrl(url.substring(url.lastIndexOf("/") + 1));
+        }
+        if (url.contains("/captured/")) {
+            return getCapturedFrameUrl(url.substring(url.lastIndexOf("/") + 1));
+        }
+        if (url.startsWith("http://") || url.startsWith("https://")) {
+            try {
+                return cameraFrameProxyUrl(new URI(url).getPath());
+            } catch (Exception ex) {
+                return url;
+            }
+        }
+        if (looksLikeImagePath(url)) {
+            return capturedFrameUrlFromPath(url);
+        }
+        if (url.startsWith("/api/")) {
+            return url;
+        }
+        return url;
+    }
+
+    private String capturedFrameUrlFromPath(String path) {
+        if (path == null || path.isBlank()) {
+            return null;
+        }
+        String cleaned = path.trim().replace("\\", "/");
+        if (!looksLikeImagePath(cleaned)) {
+            return null;
+        }
+        return getCapturedFrameUrl(cleaned);
+    }
+
+    private boolean looksLikeImagePath(String value) {
+        if (value == null) {
+            return false;
+        }
+        String lower = value.toLowerCase();
+        return lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png") || lower.endsWith(".webp");
+    }
+
+    private CameraRecordEntity withResolvedImageUrls(CameraRecordEntity record) {
+        if (record == null) {
+            return null;
+        }
+
+        String legacyCapturedUrl = legacyCapturedImageUrl(record);
+        boolean yoloRecord = RECORD_TYPE_YOLO_DETECTION.equals(record.getRecordType());
+
+        if (yoloRecord && isLiveFrameUrl(record.getImageUrl())) {
+            record.setImageUrl(firstNonBlank(record.getYoloFrameUrl(), legacyCapturedUrl, getYoloFrameUrl()));
+        } else if (isLiveFrameUrl(record.getImageUrl()) && legacyCapturedUrl != null) {
+            record.setImageUrl(legacyCapturedUrl);
+        } else if (isBlank(record.getImageUrl())) {
+            record.setImageUrl(firstNonBlank(legacyCapturedUrl, getLatestFrameUrl()));
+        } else {
+            record.setImageUrl(firstNonBlank(cameraFrameProxyUrl(record.getImageUrl()), record.getImageUrl()));
+        }
+
+        if (yoloRecord) {
+            record.setYoloFrameUrl(firstNonBlank(cameraFrameProxyUrl(record.getYoloFrameUrl()), record.getImageUrl(), getYoloFrameUrl()));
+        }
+
+        return record;
+    }
+
+    private String legacyCapturedImageUrl(CameraRecordEntity record) {
+        if (record == null || record.getFutureNote() == null || record.getFutureNote().isBlank()) {
+            return null;
+        }
+        try {
+            JsonNode metadata = objectMapper.readTree(record.getFutureNote());
+            return capturedImageUrl(metadata);
+        } catch (Exception ex) {
+            return capturedFrameUrlFromPath(record.getFutureNote());
+        }
     }
 
     private String text(JsonNode node, String fieldName) {
@@ -303,6 +442,29 @@ public class CameraRecordService {
             }
         }
         return null;
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private boolean isLiveFrameUrl(String value) {
+        if (value == null || value.isBlank()) {
+            return true;
+        }
+        return value.contains("/api/camera-frame/latest") || value.contains("/api/camera/latest-frame");
     }
 
     private String normalizeToken(String value) {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import "../../../styles/dashboard.css";
 import "../../../styles/tank-images.css";
+import { ImageOff } from "lucide-react";
 import Sidebar from "../../../components/layout/Sidebar";
 import ProfileMenu from "../../../components/layout/ProfileMenu";
 import RpiCameraFeed from "../../../components/lab/RpiCameraFeed";
@@ -26,6 +27,7 @@ type CapturedImageItem = {
     filename: string;
     filepath?: string;
     imageUrl: string;
+    fallbackImageUrl?: string;
     timestamp: string;
     tank: string;
     status?: string;
@@ -40,6 +42,46 @@ type DetectionPreview = {
     confidence?: number;
 };
 
+type CaptureMetadata = {
+    filename?: string;
+    filepath?: string;
+    saved_path?: string;
+    image_url?: string;
+    imageUrl?: string;
+    frame_url?: string;
+    timestamp?: string;
+};
+
+function parseCaptureMetadata(note: string | null | undefined): CaptureMetadata {
+    if (!note) return {};
+
+    try {
+        const parsed = JSON.parse(note) as CaptureMetadata;
+        return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+        return {};
+    }
+}
+
+function isLiveFrameUrl(url: string | null | undefined) {
+    return Boolean(url?.includes("/api/camera-frame/latest") || url?.includes("/api/camera/latest-frame"));
+}
+
+function firstText(...values: Array<string | null | undefined>) {
+    return values.find((value) => value && value.trim())?.trim() ?? "";
+}
+
+function isSharedCameraFrameUrl(url: string | null | undefined) {
+    return Boolean(url?.includes("/api/camera-frame/latest") || url?.includes("/api/camera-frame/yolo"));
+}
+
+function galleryImageUrl(url: string | null | undefined) {
+    const normalisedUrl = normaliseCameraImageUrl(url);
+    if (!normalisedUrl || normalisedUrl.startsWith("data:image/")) return normalisedUrl;
+    if (isSharedCameraFrameUrl(normalisedUrl)) return normalisedUrl;
+    return withImageCacheBust(normalisedUrl);
+}
+
 function formatMetric(value: number | null | undefined, unit = "") {
     if (typeof value !== "number" || Number.isNaN(value)) return "--";
     const formatted = value < 1 ? value.toFixed(4) : value.toFixed(2);
@@ -47,15 +89,33 @@ function formatMetric(value: number | null | undefined, unit = "") {
 }
 
 function buildCapturedImageItem(record: CameraRecord): CapturedImageItem {
-    const timestamp = record.createdAt || formatCurrentDateTime();
+    const metadata = parseCaptureMetadata(record.futureNote);
+    const timestamp = metadata.timestamp || record.createdAt || formatCurrentDateTime();
     const recordLabel = record.recordType || "camera_record";
-    const filename = `raincatcher_${recordLabel}_${record.id ?? Date.now()}.jpg`;
+    const fallbackFilename = `raincatcher_${recordLabel}_${record.id ?? Date.now()}.jpg`;
+    const filename = metadata.filename || fallbackFilename;
+    const metadataImageUrl = firstText(
+        metadata.image_url,
+        metadata.imageUrl,
+        metadata.frame_url,
+        metadata.filename ? `/api/camera-frame/captured/${metadata.filename}` : "",
+    );
+    const sharedFallbackUrl = record.recordType === "yolo_detection"
+        ? normaliseCameraImageUrl(record.yoloFrameUrl || getYoloFrameUrl())
+        : normaliseCameraImageUrl(getLatestFrameUrl());
+    const legacyLiveImageUrl = record.recordType === "yolo_detection"
+        ? firstText(record.yoloFrameUrl, getYoloFrameUrl())
+        : firstText(record.imageUrl, getLatestFrameUrl());
+    const preferredImageUrl = isLiveFrameUrl(record.imageUrl)
+        ? legacyLiveImageUrl
+        : firstText(record.imageUrl, metadataImageUrl, legacyLiveImageUrl);
 
     return {
         id: `${record.id ?? filename}`,
         filename,
-        filepath: record.futureNote ?? undefined,
-        imageUrl: withImageCacheBust(record.imageUrl || getLatestFrameUrl()),
+        filepath: firstText(metadata.filepath, metadata.saved_path, record.futureNote) || undefined,
+        imageUrl: galleryImageUrl(preferredImageUrl),
+        fallbackImageUrl: sharedFallbackUrl,
         timestamp,
         tank: record.tankId || RAINWATER_TANK_NAME,
         status: record.status || record.recordType || "saved",
@@ -129,6 +189,8 @@ export default function TankImagesPage() {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [autoCapture, setAutoCapture] = useState(false);
     const [capturedImages, setCapturedImages] = useState<CapturedImageItem[]>([]);
+    const [failedImageIds, setFailedImageIds] = useState<Record<string, boolean>>({});
+    const [fallbackImageIds, setFallbackImageIds] = useState<Record<string, boolean>>({});
     const [captureStatus, setCaptureStatus] = useState("Ready to capture from Raspberry Pi camera ML backend.");
     const [cameraHealth, setCameraHealth] = useState<CameraRecordHealth | null>(null);
 
@@ -161,6 +223,8 @@ export default function TankImagesPage() {
             if (health.status === "fulfilled") setCameraHealth(health.value);
             if (history.status === "fulfilled") {
                 setCapturedImages(history.value.map(buildCapturedImageItem));
+                setFailedImageIds({});
+                setFallbackImageIds({});
                 if (history.value.length === 0) {
                     setCaptureStatus("Live feed connected. No saved camera records yet.");
                 }
@@ -558,41 +622,61 @@ export default function TankImagesPage() {
                                 </div>
                             ) : (
                                 <div className="tank-gallery-grid">
-                                    {capturedImages.map((item) => (
-                                        <article key={item.id} className="tank-gallery-card">
-                                            <img
-                                                src={item.imageUrl}
-                                                alt={`${item.tank} camera record at ${item.timestamp}`}
-                                                className="tank-gallery-image"
-                                            />
+                                    {capturedImages.map((item) => {
+                                        const shouldUseFallback = fallbackImageIds[item.id] && item.fallbackImageUrl;
+                                        const currentImageUrl = shouldUseFallback ? item.fallbackImageUrl : item.imageUrl;
+                                        const imageUnavailable = failedImageIds[item.id] || !currentImageUrl;
 
-                                            <div className="tank-gallery-card-body">
-                                                <p className="tank-gallery-timestamp">{item.timestamp}</p>
-                                                <h3 className="tank-gallery-filename" title={item.filepath}>
-                                                    {item.filename}
-                                                </h3>
-
-                                                <div className="tank-gallery-status-row">
-                                                    <span className="tank-gallery-status-pill">
-                                                        {item.status ?? "saved"}
-                                                    </span>
-                                                    <span className={`tank-gallery-severity-pill ${getSeverityPillClass(item.severity)}`}>
-                                                        {item.severity ?? "pending"}
-                                                    </span>
-                                                </div>
-
-                                                {item.recommendation && (
-                                                    <p className="tank-gallery-recommendation">
-                                                        {item.recommendation}
-                                                    </p>
+                                        return (
+                                            <article key={item.id} className="tank-gallery-card">
+                                                {imageUnavailable ? (
+                                                    <div className="tank-gallery-image-missing">
+                                                        <ImageOff size={24} />
+                                                        <span>Image unavailable</span>
+                                                    </div>
+                                                ) : (
+                                                    <img
+                                                        src={currentImageUrl}
+                                                        alt="Camera record"
+                                                        className="tank-gallery-image"
+                                                        onError={() => {
+                                                            if (!shouldUseFallback && item.fallbackImageUrl && item.fallbackImageUrl !== item.imageUrl) {
+                                                                setFallbackImageIds((prev) => ({ ...prev, [item.id]: true }));
+                                                                return;
+                                                            }
+                                                            setFailedImageIds((prev) => ({ ...prev, [item.id]: true }));
+                                                        }}
+                                                    />
                                                 )}
 
-                                                <div className="tank-gallery-footer">
-                                                    <span className="tank-gallery-tag">{item.tank}</span>
+                                                <div className="tank-gallery-card-body">
+                                                    <p className="tank-gallery-timestamp">{item.timestamp}</p>
+                                                    <h3 className="tank-gallery-filename" title={item.filepath}>
+                                                        {item.filename}
+                                                    </h3>
+
+                                                    <div className="tank-gallery-status-row">
+                                                        <span className="tank-gallery-status-pill">
+                                                            {item.status ?? "saved"}
+                                                        </span>
+                                                        <span className={`tank-gallery-severity-pill ${getSeverityPillClass(item.severity)}`}>
+                                                            {item.severity ?? "pending"}
+                                                        </span>
+                                                    </div>
+
+                                                    {item.recommendation && (
+                                                        <p className="tank-gallery-recommendation">
+                                                            {item.recommendation}
+                                                        </p>
+                                                    )}
+
+                                                    <div className="tank-gallery-footer">
+                                                        <span className="tank-gallery-tag">{item.tank}</span>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </article>
-                                    ))}
+                                            </article>
+                                        );
+                                    })}
                                 </div>
                             )}
                         </section>

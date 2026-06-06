@@ -14,7 +14,7 @@ public class ExternalServiceHealthCheckService {
 
     public ExternalServiceHealthCheckService(
             @Value("${camera.rpi.base-url:}") String cameraBaseUrl,
-            @Value("${ml.service.base-url:http://192.168.100.137:5051}") String mlBaseUrl
+            @Value("${ml.service.base-url:http://192.168.100.137:5050}") String mlBaseUrl
     ) {
         this.cameraBaseUrl = stripTrailingSlash(cameraBaseUrl);
         this.mlBaseUrl = stripTrailingSlash(mlBaseUrl);
