@@ -87,21 +87,48 @@ public class AdminDeviceService {
     public AdminDeviceEntity refresh(Long id) {
         AdminDeviceEntity entity = repository.findById(id).orElseThrow();
         entity.setLastSeen(LocalDateTime.now().toString());
-        entity.setLastData("Refresh requested. Hardware-level refresh is not implemented yet.");
+        String liveStatus = checkDeviceHealth(entity);
+        entity.setStatus(liveStatus);
+        entity.setLastData("Status refreshed: " + liveStatus + " at " + LocalDateTime.now());
         entity.setUpdatedAt(LocalDateTime.now());
         AdminDeviceEntity saved = repository.save(entity);
-        auditLogService.record("Device refresh requested", "admin", saved.getName(), "warning", "Not implemented for hardware control.");
+        auditLogService.record("Device refresh requested", "admin", saved.getName(), "normal", "Status updated to " + liveStatus);
         return saved;
     }
 
     @Transactional
     public AdminDeviceEntity restartService(Long id) {
         AdminDeviceEntity entity = repository.findById(id).orElseThrow();
-        entity.setLastData("Restart requested. Service restart command is not implemented yet.");
+        entity.setLastData("Restart not available from dashboard. Please restart the service directly on the Raspberry Pi.");
         entity.setUpdatedAt(LocalDateTime.now());
         AdminDeviceEntity saved = repository.save(entity);
-        auditLogService.record("Device service restart requested", "admin", saved.getName(), "warning", "Not implemented for hardware control.");
+        auditLogService.record("Device service restart requested", "admin", saved.getName(), "warning", "Remote restart is not supported; manual restart required on Pi.");
         return saved;
+    }
+
+    private String checkDeviceHealth(AdminDeviceEntity entity) {
+        String tag = entity.getInputTag();
+        if (tag == null) return entity.getStatus() != null ? entity.getStatus() : "Pending";
+        String url = switch (tag) {
+            case "camera_service" -> "http://192.168.100.137:5050/health";
+            case "yolo_service"   -> "http://192.168.100.137:5051/health";
+            default               -> null;
+        };
+        if (url == null) return entity.getStatus() != null ? entity.getStatus() : "Pending";
+        long start = System.currentTimeMillis();
+        try {
+            java.net.HttpURLConnection conn = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
+            conn.setConnectTimeout(3000);
+            conn.setReadTimeout(3000);
+            conn.setRequestMethod("GET");
+            int code = conn.getResponseCode();
+            long elapsed = System.currentTimeMillis() - start;
+            conn.disconnect();
+            if (code >= 200 && code < 400) return elapsed > 1500 ? "Warning" : "Online";
+            return "Offline";
+        } catch (Exception ignored) {
+            return "Offline";
+        }
     }
 
     private void apply(AdminDeviceEntity entity, AdminDeviceRequest request) {

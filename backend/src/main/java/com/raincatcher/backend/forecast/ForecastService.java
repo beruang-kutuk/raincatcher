@@ -36,8 +36,8 @@ public class ForecastService {
     );
 
     private static final String TANK_NAME = "Rainwater Tank A";
-    private static final double DEFAULT_TANK_CAPACITY_LITRES = 10_000.0;
-    private static final double DEFAULT_DAILY_USAGE_LITRES = 250.0;
+    private static final double DEFAULT_TANK_CAPACITY_LITRES = 3.0;
+    private static final double DEFAULT_DAILY_USAGE_LITRES = 0.5;
     private static final double DEFAULT_CATCHMENT_AREA_M2 = 75.0;
     private static final double DEFAULT_RUNOFF_COEFFICIENT = 0.82;
 

@@ -85,6 +85,12 @@ def generate_frames():
 def index():
     return render_template_string(HTML_PAGE)
 
+@app.route("/health")
+def health():
+    from flask import jsonify
+    status = "online" if camera.isOpened() else "offline"
+    return jsonify({"status": status, "service": "camera"}), 200
+
 @app.route("/video-feed")
 def video_feed():
     return Response(
@@ -99,4 +105,4 @@ if __name__ == "__main__":
         print("Starting Raincatcher camera server...")
         print("Open from laptop: http://192.168.100.204:5000")
 
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    app.run(host="0.0.0.0", port=5050, debug=False)

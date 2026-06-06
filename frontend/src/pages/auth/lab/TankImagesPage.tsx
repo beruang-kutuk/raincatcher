@@ -12,6 +12,7 @@ import {
     getCameraRecordHistory,
     getLatestAnalysisRecord,
     getLatestYoloRecord,
+    normaliseCameraImageUrl,
     runYoloCameraRecord,
     withImageCacheBust,
     type CameraRecord,
@@ -34,6 +35,8 @@ type CapturedImageItem = {
 
 type DetectionPreview = {
     label?: string;
+    className?: string;
+    type?: string;
     confidence?: number;
 };
 
@@ -88,6 +91,40 @@ function formatReadableStatus(value: string | null | undefined) {
         .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function buildVersionedImageUrl(url: string | null | undefined, version: number | null) {
+    const normalisedUrl = normaliseCameraImageUrl(url);
+    if (!normalisedUrl || version === null) return "";
+    return `${normalisedUrl}${normalisedUrl.includes("?") ? "&" : "?"}t=${version}`;
+}
+
+function detectionLabel(detection: DetectionPreview | null | undefined) {
+    return detection?.label || detection?.className || detection?.type || "";
+}
+
+function getYoloRecommendation(record: CameraRecord | null, detections: DetectionPreview[]) {
+    const knownAdvice: Record<string, string> = {
+        leaf: "Remove the leaf, inspect the cover or inlet mesh, then retest turbidity.",
+        debris: "Clean visible debris and inspect the tank filter.",
+        insect: "Inspect the tank sealing and cover for gaps.",
+        trash: "Remove the object and check contamination risk.",
+        foreign_object: "Inspect immediately and log maintenance.",
+    };
+
+    const primaryLabel = detections
+        .map((item) => detectionLabel(item).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, ""))
+        .find((label) => Boolean(label));
+
+    if (primaryLabel && knownAdvice[primaryLabel]) {
+        return knownAdvice[primaryLabel];
+    }
+
+    if (!primaryLabel && (record?.detectionCount ?? 0) === 0) {
+        return "No major object detected in the camera view.";
+    }
+
+    return record?.aiRecommendation || "No major object detected in the camera view.";
+}
+
 export default function TankImagesPage() {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [autoCapture, setAutoCapture] = useState(false);
@@ -102,7 +139,9 @@ export default function TankImagesPage() {
     const [yoloResult, setYoloResult] = useState<CameraRecord | null>(null);
     const [yoloLoading, setYoloLoading] = useState(false);
     const [yoloError, setYoloError] = useState("");
-    const [yoloFrameToken, setYoloFrameToken] = useState<number | null>(null);
+    const [yoloFrameVersion, setYoloFrameVersion] = useState<number | null>(null);
+    const [yoloFrameLoaded, setYoloFrameLoaded] = useState(false);
+    const [yoloFrameError, setYoloFrameError] = useState("");
 
     const [captureLoading, setCaptureLoading] = useState(false);
 
@@ -129,7 +168,7 @@ export default function TankImagesPage() {
             if (latestAnalysis.status === "fulfilled") setCameraAnalysis(latestAnalysis.value);
             if (latestYolo.status === "fulfilled") {
                 setYoloResult(latestYolo.value);
-                if (latestYolo.value?.yoloFrameUrl) setYoloFrameToken(Date.now());
+                if (latestYolo.value?.yoloFrameUrl) setYoloFrameVersion(Date.now());
             }
         }
 
@@ -176,13 +215,16 @@ export default function TankImagesPage() {
     async function handleYoloDetection() {
         setYoloLoading(true);
         setYoloError("");
+        setYoloFrameError("");
+        setYoloFrameLoaded(false);
 
         try {
             const result = await runYoloCameraRecord();
             if (!result) throw new Error("No YOLO detection record was returned.");
             setYoloResult(result);
             setCapturedImages((prev) => [buildCapturedImageItem(result), ...prev]);
-            setYoloFrameToken(Date.now());
+            setYoloFrameVersion(Date.now());
+            globalThis.window?.dispatchEvent(new CustomEvent("raincatcher:notifications-updated"));
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             setYoloError(message);
@@ -199,6 +241,8 @@ export default function TankImagesPage() {
 
     const yoloDetections = parseDetections(yoloResult);
     const yoloFrameUrl = yoloResult?.yoloFrameUrl || getYoloFrameUrl();
+    const yoloFrameSrc = buildVersionedImageUrl(yoloFrameUrl, yoloFrameVersion);
+    const yoloRecommendation = getYoloRecommendation(yoloResult, yoloDetections);
 
     return (
         <div className={`app-shell-fixed ${sidebarOpen ? "sidebar-expanded" : "sidebar-collapsed"}`}>
@@ -246,7 +290,7 @@ export default function TankImagesPage() {
                                     refreshMs={5000}
                                 />
 
-                                {yoloFrameToken !== null && (
+                                {(yoloLoading || yoloFrameVersion !== null) && (
                                     <div className="yolo-frame-section">
                                         <div className="tank-panel-header tank-panel-header-split" style={{ marginTop: "18px" }}>
                                             <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 700 }}>YOLO Annotated Frame</h3>
@@ -255,16 +299,41 @@ export default function TankImagesPage() {
                                             </span>
                                         </div>
 
-                                        <div className="yolo-frame-preview">
-                                            <img
-                                                src={withImageCacheBust(yoloFrameUrl)}
-                                                alt="YOLO annotated camera frame"
-                                                className="tank-live-image"
-                                                style={{ borderRadius: "14px", width: "100%" }}
-                                                onError={(e) => {
-                                                    (e.currentTarget as HTMLImageElement).style.display = "none";
-                                                }}
-                                            />
+                                        <div className="yolo-frame-preview" aria-busy={yoloLoading}>
+                                            {yoloLoading && (
+                                                <div className="yolo-frame-state">
+                                                    Running YOLO detection on Raspberry Pi...
+                                                </div>
+                                            )}
+
+                                            {!yoloLoading && yoloFrameError && (
+                                                <div className="yolo-frame-state error">
+                                                    {yoloFrameError}
+                                                </div>
+                                            )}
+
+                                            {!yoloLoading && yoloFrameSrc && !yoloFrameError && (
+                                                <>
+                                                    {!yoloFrameLoaded && (
+                                                        <div className="yolo-frame-state">
+                                                            Loading annotated frame...
+                                                        </div>
+                                                    )}
+                                                    <img
+                                                        src={yoloFrameSrc}
+                                                        alt="YOLO annotated camera frame"
+                                                        className={`tank-live-image yolo-frame-image ${yoloFrameLoaded ? "loaded" : ""}`}
+                                                        onLoad={() => {
+                                                            setYoloFrameLoaded(true);
+                                                            setYoloFrameError("");
+                                                        }}
+                                                        onError={() => {
+                                                            setYoloFrameLoaded(false);
+                                                            setYoloFrameError("Annotated frame not ready yet. Try running YOLO detection again.");
+                                                        }}
+                                                    />
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                 )}
@@ -292,7 +361,7 @@ export default function TankImagesPage() {
                                     disabled={yoloLoading}
                                     style={{ marginTop: "8px" }}
                                 >
-                                    {yoloLoading ? "Detecting..." : "Run YOLO Detection"}
+                                    {yoloLoading ? "Running YOLO detection..." : "Run YOLO Detection"}
                                 </button>
 
                                 <button
@@ -399,7 +468,7 @@ export default function TankImagesPage() {
                                                 <div className="yolo-detection-list">
                                                     {yoloDetections.map((det, index) => (
                                                         <span key={index} className="yolo-detection-pill">
-                                                            {formatReadableStatus(det.label ?? "object")} ({((det.confidence ?? 0) * 100).toFixed(0)}%)
+                                                            {formatReadableStatus(detectionLabel(det) || "object")} ({((det.confidence ?? 0) * 100).toFixed(0)}%)
                                                         </span>
                                                     ))}
                                                 </div>
@@ -407,7 +476,7 @@ export default function TankImagesPage() {
 
                                             <div className="tank-camera-ml-recommendation">
                                                 <span>AI Recommendation</span>
-                                                <p>{yoloResult.aiRecommendation}</p>
+                                                <p>{yoloRecommendation}</p>
                                             </div>
 
                                             {yoloResult.futureNote && (

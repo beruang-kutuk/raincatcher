@@ -21,7 +21,7 @@ public class CameraFrameController {
 
     private final RestClient restClient;
 
-    public CameraFrameController(@Value("${camera.rpi.base-url}") String rpiBaseUrl) {
+    public CameraFrameController(@Value("${ml.service.base-url:http://192.168.100.137:5051}") String rpiBaseUrl) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(Duration.ofSeconds(4));
         requestFactory.setReadTimeout(Duration.ofSeconds(8));

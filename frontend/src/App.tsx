@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import LoginPage from "./pages/auth/LoginPage";
+import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
 import LabDashboardPage from "./pages/auth/lab/LabDashboardPage";
 import RequireAuth from "./routes/RequireAuth";
 import TelemetryPage from "./pages/auth/lab/TelemetryPage";
@@ -27,7 +29,7 @@ import {
 const labRoles: UserRole[] = ["LAB_ASSISTANT"];
 const adminRoles: UserRole[] = ["SUPER_ADMIN"];
 const allRoles: UserRole[] = ["LAB_ASSISTANT", "SUPER_ADMIN"];
-const publicAuthRoutes = ["/login", "/signup", "/forgot-password"];
+const publicAuthRoutes = ["/login", "/signup", "/forgot-password", "/reset-password"];
 
 function RoleRedirect() {
   const token = localStorage.getItem("rc_token");
@@ -65,6 +67,8 @@ export default function App() {
       <ThemeRouteSync />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
 
         <Route
           path="/admin/dashboard"
@@ -212,6 +216,15 @@ export default function App() {
 
         <Route
           path="/lab/images"
+          element={
+            <RequireAuth allowedRoles={labRoles}>
+              <TankImagesPage />
+            </RequireAuth>
+          }
+        />
+
+        <Route
+          path="/lab/tank-images"
           element={
             <RequireAuth allowedRoles={labRoles}>
               <TankImagesPage />

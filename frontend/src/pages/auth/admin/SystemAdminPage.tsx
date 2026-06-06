@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
     AlertTriangle,
@@ -9,6 +9,7 @@ import {
     HeartPulse,
     History,
     RefreshCcw,
+    Send,
     ShieldCheck,
     SlidersHorizontal,
     Trash2,
@@ -18,6 +19,7 @@ import "../../../styles/dashboard.css";
 import "../../../styles/admin.css";
 import Sidebar from "../../../components/layout/Sidebar";
 import AdminTopbar from "../../../components/layout/AdminTopbar";
+import StatusToast, { type ToastState } from "../../../components/StatusToast";
 import {
     getAdminDevices,
     markAdminDeviceMaintenance,
@@ -61,6 +63,7 @@ import {
     getAdminAuditLogs,
     type AdminAuditLog,
 } from "../../../services/adminAuditLogApi";
+import { testTelegramNotification } from "../../../services/notificationApi";
 
 type AdminSection =
     | "overview"
@@ -98,7 +101,7 @@ function getSectionFromPath(pathname: string): AdminSection {
 function getAdminStatusClass(status: string) {
     const lowered = status.toLowerCase();
     if (lowered.includes("offline") || lowered.includes("critical") || lowered.includes("no_data")) return "admin-status-critical";
-    if (lowered.includes("warning") || lowered.includes("pending") || lowered.includes("stale") || lowered.includes("not_implemented") || lowered.includes("no_records")) return "admin-status-warning";
+    if (lowered.includes("warning") || lowered.includes("pending") || lowered.includes("stale") || lowered.includes("not_implemented") || lowered.includes("not_configured") || lowered.includes("slow") || lowered.includes("no_records")) return "admin-status-warning";
     return "admin-status-normal";
 }
 
@@ -120,6 +123,31 @@ function SectionHeader({ title, description, icon }: { title: string; descriptio
 
 function toValueMap<T extends { value: string }>(items: T[], keyField: keyof T) {
     return Object.fromEntries(items.map((item) => [String(item[keyField]), item.value]));
+}
+
+function friendlyStatus(raw: string | undefined | null): string {
+    if (!raw) return "--";
+    const map: Record<string, string> = {
+        has_completed_runs: "Completed",
+        no_completed_runs: "No Run",
+        has_records: "Active",
+        configured_no_records: "Configured",
+        no_records: "No Records",
+        not_implemented: "Not Configured",
+        not_configured: "Not Configured",
+        online: "Online",
+        offline: "Offline",
+        stale: "Stale",
+        no_data: "No Data",
+        connected: "Connected",
+        ready: "Ready",
+        slow: "Slow Response",
+        slow_response: "Slow Response",
+        maintenance: "Maintenance",
+        pending: "Pending",
+        warning: "Warning",
+    };
+    return map[raw.toLowerCase()] ?? raw.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 export default function SystemAdminPage() {
@@ -144,12 +172,11 @@ export default function SystemAdminPage() {
     const [newTemplateName, setNewTemplateName] = useState("");
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState("");
-    const [message, setMessage] = useState("");
-    const [error, setError] = useState("");
+    const [toast, setToast] = useState<ToastState>(null);
+    const dismissToast = useCallback(() => setToast(null), []);
 
     async function loadAdminData() {
         setLoading(true);
-        setError("");
         try {
             const [
                 deviceRows,
@@ -182,7 +209,7 @@ export default function SystemAdminPage() {
             setDeviceStatusDraft(Object.fromEntries(deviceRows.map((device) => [device.id, device.status])));
             setTemplateDraft(Object.fromEntries(templateRows.map((template) => [template.id, template])));
         } catch (loadError) {
-            setError(loadError instanceof Error ? loadError.message : "Admin backend unavailable.");
+            setToast({ type: "error", title: "Admin backend unavailable", message: loadError instanceof Error ? loadError.message : "Check the Raspberry Pi backend." });
         } finally {
             setLoading(false);
         }
@@ -198,23 +225,42 @@ export default function SystemAdminPage() {
     );
     const currentAlerts = useMemo(
         () => [
-            health?.esp32Telemetry && health.esp32Telemetry !== "online" ? `ESP32 telemetry ${health.esp32Telemetry}` : "",
-            health?.yoloService === "not_implemented" ? "YOLO service check not implemented" : "",
-            diagnostics.some((item) => item.result === "Not implemented") ? "Some diagnostics return Not implemented" : "",
+            health?.esp32Telemetry && health.esp32Telemetry !== "online" ? `ESP32 telemetry: ${friendlyStatus(health.esp32Telemetry)}` : "",
+            health?.yoloService && !["online", "has_records", "ready", "connected"].includes(health.yoloService) ? `YOLO service: ${friendlyStatus(health.yoloService)}` : "",
         ].filter(Boolean),
-        [health, diagnostics],
+        [health],
     );
 
     async function runAction(label: string, action: () => Promise<unknown>, after?: () => Promise<void> | void) {
         setActionLoading(label);
-        setMessage("");
-        setError("");
+        setToast({ type: "loading", title: `${label} in progress...` });
         try {
             await action();
             await after?.();
-            setMessage(`${label} completed.`);
+            setToast({ type: "success", title: `${label} completed.` });
         } catch (actionError) {
-            setError(actionError instanceof Error ? actionError.message : `${label} failed.`);
+            setToast({ type: "error", title: `${label} failed`, message: actionError instanceof Error ? actionError.message : "Check the backend connection." });
+        } finally {
+            setActionLoading("");
+        }
+    }
+
+    async function runTelegramTest() {
+        setActionLoading("Test Telegram");
+        setToast({ type: "loading", title: "Sending Telegram test..." });
+        try {
+            const result = await testTelegramNotification();
+            setToast({
+                type: result.sent ? "success" : result.status === "failed" ? "error" : "warning",
+                title: result.sent ? "Telegram test sent." : "Telegram test not sent.",
+                message: result.message,
+            });
+        } catch (error) {
+            setToast({
+                type: "error",
+                title: "Telegram test failed",
+                message: error instanceof Error ? error.message : "Check backend notification settings.",
+            });
         } finally {
             setActionLoading("");
         }
@@ -358,13 +404,16 @@ export default function SystemAdminPage() {
                     <button className="admin-primary-btn" type="button" disabled={actionLoading !== ""} onClick={() => runAction("System Health Check", () => runAdminSystemHealthCheck(), loadAdminData)}>
                         {actionLoading === "System Health Check" ? "Checking..." : "Run Health Check"}
                     </button>
+                    <button className="admin-secondary-btn" type="button" disabled={actionLoading !== ""} onClick={() => void runTelegramTest()}>
+                        <Send size={14} /> {actionLoading === "Test Telegram" ? "Sending..." : "Test Telegram"}
+                    </button>
                 </div>
                 <div className="admin-grid admin-grid-three">
                     {cards.map((service) => (
                         <article key={service.serviceKey} className="admin-mini-panel admin-engine-card">
                             <div className="admin-engine-top">
                                 <h2>{service.serviceName}</h2>
-                                <StatusPill status={service.status} />
+                                <StatusPill status={friendlyStatus(service.status)} />
                             </div>
                             <p>{service.detail}</p>
                             <p><strong>Checked:</strong> {service.checkedAt || "Pending"}</p>
@@ -574,7 +623,6 @@ export default function SystemAdminPage() {
                             kicker="Admin System Controls"
                             title={activeMeta.label}
                             subtitle={activeMeta.description}
-                            inlineMessage={message || error}
                             secondaryAction={
                                 <button className="admin-secondary-btn" type="button" onClick={() => void loadAdminData()} disabled={loading || actionLoading !== ""}>
                                     {loading ? "Loading..." : "Refresh"}
@@ -582,8 +630,7 @@ export default function SystemAdminPage() {
                             }
                         />
 
-                        {error && <div className="admin-inline-alert">{error}</div>}
-                        {actionLoading && <div className="admin-inline-alert">{actionLoading} in progress...</div>}
+                        <StatusToast toast={toast} onDismiss={dismissToast} />
 
                         {renderActiveSection()}
                     </div>

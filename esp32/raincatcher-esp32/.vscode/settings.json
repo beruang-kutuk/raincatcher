@@ -1,0 +1,30 @@
+{
+    // ── ESP32 / PlatformIO IntelliSense fix ──────────────────────────────────
+    // VS Code cannot automatically find stdint.h / inttypes.h for the xtensa
+    // cross-compiler.  These paths are added to c_cpp_properties.json manually.
+    //
+    // If PlatformIO regenerates c_cpp_properties.json (via "Rebuild IntelliSense
+    // Index"), the two xtensa toolchain paths below will be removed and the
+    // squiggles will return.  To fix them again, re-add these two entries at the
+    // top of both "includePath" and "browse.path" in c_cpp_properties.json:
+    //
+    //   "C:/Users/jasmine/.platformio/packages/toolchain-xtensa-esp32/xtensa-esp32-elf/include"
+    //   "C:/Users/jasmine/.platformio/packages/toolchain-xtensa-esp32/lib/gcc/xtensa-esp32-elf/8.4.0/include"
+    //
+    // NOTE: These are IDE-only errors.  PlatformIO compiles the project
+    // correctly regardless of IntelliSense squiggles.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    "C_Cpp.intelliSenseEngine": "default",
+    "C_Cpp.errorSquiggles": "enabled",
+
+    // Exclude heavy PlatformIO build artefacts from the file-watcher so VS Code
+    // does not slow down or re-index thousands of generated files.
+    "files.watcherExclude": {
+        "**/esp32/raincatcher-esp32/.pio/**": true
+    },
+    "files.exclude": {
+        "**/.pio/build": true,
+        "**/.pio/libdeps": false
+    }
+}

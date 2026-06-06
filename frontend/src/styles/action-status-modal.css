@@ -1,0 +1,106 @@
+.action-status-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 12000;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: rgba(15, 23, 42, 0.26);
+    backdrop-filter: blur(8px);
+}
+
+.action-status-card {
+    width: min(360px, 100%);
+    min-height: 220px;
+    border-radius: 18px;
+    border: 1px solid rgba(120, 86, 38, 0.20);
+    background: color-mix(in srgb, var(--card, #ffffff) 94%, white);
+    color: var(--text, #0f172a);
+    box-shadow: 0 32px 90px rgba(15, 23, 42, 0.28);
+    padding: 28px 24px 24px;
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: 12px;
+    position: relative;
+    text-align: center;
+}
+
+.action-status-card h2 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 900;
+}
+
+.action-status-card p {
+    margin: 0;
+    color: var(--muted, #64748b);
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.action-status-card small {
+    color: var(--muted, #64748b);
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.action-status-icon {
+    width: 58px;
+    height: 58px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+}
+
+.action-status-card.loading .action-status-icon {
+    color: var(--purple, #b08a45);
+    background: color-mix(in srgb, var(--purple, #b08a45) 12%, transparent);
+}
+
+.action-status-card.success .action-status-icon {
+    color: #16a34a;
+    background: rgba(22, 163, 74, 0.12);
+}
+
+.action-status-card.error .action-status-icon {
+    color: #dc2626;
+    background: rgba(220, 38, 38, 0.12);
+}
+
+.action-status-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--text, #0f172a) 8%, transparent);
+    color: var(--text, #0f172a);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.spin {
+    animation: action-status-spin 0.85s linear infinite;
+}
+
+@keyframes action-status-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+body.dark-mode .action-status-card {
+    background: #17120c;
+    color: #f8f1e7;
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+body.dark-mode .action-status-close {
+    color: #f8f1e7;
+    background: rgba(255, 255, 255, 0.08);
+}

@@ -32,11 +32,12 @@ import {
 import { getEmptyStorageProjection } from "../../../services/forecastPlaceholders";
 import { RAINWATER_TANK_NAME } from "../../../services/sensorInputs";
 import { formatCurrentDate, formatCurrentDateTime } from "../../../services/time";
+import { getAdminForecastSettings } from "../../../services/adminForecastSettingsApi";
 
-const DEFAULT_TANK_CAPACITY_LITRES = 10000;
+const DEFAULT_TANK_CAPACITY_LITRES = 3;
 const DEFAULT_CATCHMENT_AREA_M2 = 75;
 const DEFAULT_RUNOFF_COEFFICIENT = 0.82;
-const DEFAULT_DAILY_USAGE_LITRES = 250;
+const DEFAULT_DAILY_USAGE_LITRES = 0.5;
 
 type ForecastMetric = {
     label: string;
@@ -178,6 +179,13 @@ export default function ForecastPage() {
     const [calibrationAction, setCalibrationAction] = useState<"run" | "reset" | "baseline" | null>(null);
     const [calibrationMessage, setCalibrationMessage] = useState("");
     const [calibrationError, setCalibrationError] = useState("");
+    const [forecastSettings, setForecastSettings] = useState({
+        tankCapacityLitres: DEFAULT_TANK_CAPACITY_LITRES,
+        dailyUsageLitres: DEFAULT_DAILY_USAGE_LITRES,
+        catchmentAreaM2: DEFAULT_CATCHMENT_AREA_M2,
+        runoffCoefficient: DEFAULT_RUNOFF_COEFFICIENT,
+        forecastDays: 7,
+    });
 
     const generatedAt = formatCurrentDateTime();
     const emptyProjection = useMemo<StorageProjectionRow[]>(() => getEmptyStorageProjection(7), []);
@@ -214,6 +222,23 @@ export default function ForecastPage() {
             .then((series) => { if (active) setDailySeries(series); })
             .catch(() => { /* single rainfall record remains the fallback */ });
 
+        getAdminForecastSettings()
+            .then((settings) => {
+                if (!active) return;
+                const get = (key: string, fallback: number) => {
+                    const val = parseFloat(settings.find((s) => s.settingKey === key)?.value ?? "");
+                    return Number.isFinite(val) && val > 0 ? val : fallback;
+                };
+                setForecastSettings({
+                    tankCapacityLitres: get("tank_capacity_litres", DEFAULT_TANK_CAPACITY_LITRES),
+                    dailyUsageLitres: get("daily_usage_litres", DEFAULT_DAILY_USAGE_LITRES),
+                    catchmentAreaM2: get("catchment_area_m2", DEFAULT_CATCHMENT_AREA_M2),
+                    runoffCoefficient: get("runoff_coefficient", DEFAULT_RUNOFF_COEFFICIENT),
+                    forecastDays: get("forecast_days", 7),
+                });
+            })
+            .catch(() => { /* keep defaults — admin API might not be authenticated */ });
+
         void loadCalibration();
 
         return () => { active = false; };
@@ -223,7 +248,8 @@ export default function ForecastPage() {
         if (!telemetry) return;
         let active = true;
 
-        const currentVolumeLitres = (telemetry.waterLevelPercent / 100) * DEFAULT_TANK_CAPACITY_LITRES;
+        const { tankCapacityLitres, dailyUsageLitres, catchmentAreaM2, runoffCoefficient, forecastDays } = forecastSettings;
+        const currentVolumeLitres = (telemetry.waterLevelPercent / 100) * tankCapacityLitres;
         const dailyRainfall = dailySeries.length > 0
             ? dailySeries.slice(0, 7).map((day) => typeof day.rainfallAmount === "number" ? day.rainfallAmount : 0)
             : [typeof rainfallWeather?.rainfallAmount === "number" ? rainfallWeather.rainfallAmount : 0];
@@ -232,11 +258,11 @@ export default function ForecastPage() {
         setForecastError("");
         getTankStorageForecast({
             currentTankVolumeLitres: currentVolumeLitres,
-            tankCapacityLitres: DEFAULT_TANK_CAPACITY_LITRES,
-            dailyUsageLitres: DEFAULT_DAILY_USAGE_LITRES,
-            catchmentAreaM2: DEFAULT_CATCHMENT_AREA_M2,
-            runoffCoefficient: DEFAULT_RUNOFF_COEFFICIENT,
-            forecastDays: 7,
+            tankCapacityLitres,
+            dailyUsageLitres,
+            catchmentAreaM2,
+            runoffCoefficient,
+            forecastDays,
             dailyRainfallMm: dailyRainfall,
         })
             .then((result) => { if (active) setForecastResult(result); })
@@ -257,7 +283,7 @@ export default function ForecastPage() {
             .finally(() => { if (active) setAiLoading(false); });
 
         return () => { active = false; };
-    }, [telemetry, rainfallWeather, dailySeries]);
+    }, [telemetry, rainfallWeather, dailySeries, forecastSettings]);
 
     const rainfallTrend = useMemo(() => {
         if (forecastResult?.dailyProjection.length) return forecastResult.dailyProjection.map((point) => point.rainfallMm);
@@ -281,7 +307,7 @@ export default function ForecastPage() {
     const totalRainfall = dailySeries.length > 0
         ? dailySeries.reduce((sum, day) => sum + (typeof day.rainfallAmount === "number" ? day.rainfallAmount : 0), 0)
         : typeof rainfallWeather?.rainfallAmount === "number" ? rainfallWeather.rainfallAmount : null;
-    const usableWaterLitres = telemetry ? (telemetry.waterLevelPercent / 100) * DEFAULT_TANK_CAPACITY_LITRES : null;
+    const usableWaterLitres = telemetry ? (telemetry.waterLevelPercent / 100) * forecastSettings.tankCapacityLitres : null;
     const confidence = calibrationSummary?.calibrationAccuracy
         ?? forecastResult?.calibrationAccuracyPercent
         ?? (forecastResult ? Math.max(65, 100 - forecastResult.shortageDays * 8 - forecastResult.overflowDays * 6) : null);
@@ -301,7 +327,7 @@ export default function ForecastPage() {
         },
         {
             label: "Usable Water",
-            value: usableWaterLitres != null ? `${usableWaterLitres.toFixed(0)} L` : "--",
+            value: usableWaterLitres != null ? `${usableWaterLitres.toFixed(2)} L` : "--",
             meta: "Estimated from current tank level and capacity",
             status: telemetry ? "normal" : "warning",
         },

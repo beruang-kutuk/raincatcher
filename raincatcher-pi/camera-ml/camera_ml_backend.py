@@ -154,15 +154,23 @@ def home():
         "yolo_model": YOLO_MODEL_PATH,
         "endpoints": [
             "/api/camera/health",
+            "/health",
             "/api/camera/analyse",
+            "/analyze-latest",
+            "/analyse-latest",
             "/api/camera/capture",
+            "/capture",
             "/api/camera/latest-frame",
+            "/latest-frame",
             "/api/camera/yolo-detect",
-            "/api/camera/yolo-frame"
+            "/yolo-detect",
+            "/api/camera/yolo-frame",
+            "/yolo-frame"
         ]
     })
 
 
+@app.route("/health")
 @app.route("/api/camera/health")
 def camera_health():
     camera = open_camera()
@@ -177,6 +185,8 @@ def camera_health():
     })
 
 
+@app.route("/analyze-latest")
+@app.route("/analyse-latest")
 @app.route("/api/camera/analyse")
 def analyse_camera():
     frame, error = get_frame()
@@ -190,6 +200,7 @@ def analyse_camera():
     return jsonify(analyse_frame(frame))
 
 
+@app.route("/capture", methods=["GET", "POST"])
 @app.route("/api/camera/capture")
 def capture_image():
     frame, error = get_frame()
@@ -216,6 +227,7 @@ def capture_image():
     })
 
 
+@app.route("/latest-frame")
 @app.route("/api/camera/latest-frame")
 def latest_frame():
     frame, error = get_frame()
@@ -247,6 +259,7 @@ def latest_frame():
     return Response(buffer.tobytes(), mimetype="image/jpeg")
 
 
+@app.route("/yolo-detect")
 @app.route("/api/camera/yolo-detect")
 def yolo_detect():
     frame, error = get_frame()
@@ -269,6 +282,7 @@ def yolo_detect():
     })
 
 
+@app.route("/yolo-frame")
 @app.route("/api/camera/yolo-frame")
 def yolo_frame():
     frame, error = get_frame()

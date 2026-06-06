@@ -23,6 +23,8 @@ public class UserEntity {
     private String phone;
     private String role;
     private String status;
+    private String authProvider;
+    private String googleSub;
 
     @Column(columnDefinition = "TEXT")
     private String passwordHash;
@@ -54,6 +56,10 @@ public class UserEntity {
     public void setRole(String role) { this.role = role; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+    public String getAuthProvider() { return authProvider; }
+    public void setAuthProvider(String authProvider) { this.authProvider = authProvider; }
+    public String getGoogleSub() { return googleSub; }
+    public void setGoogleSub(String googleSub) { this.googleSub = googleSub; }
     public String getPasswordHash() { return passwordHash; }
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
     public String getAvatarUrl() { return avatarUrl; }

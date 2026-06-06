@@ -41,6 +41,10 @@ import {
     type ReportRecord,
     type ReportSummary,
 } from "../../../services/reportsApi";
+import {
+    getReportAiSummary,
+    type AiReportSummaryResponse,
+} from "../../../services/aiApi";
 import { buildBackendUrl } from "../../../services/apiConfig";
 import { RAINWATER_TANK_NAME } from "../../../services/sensorInputs";
 import {
@@ -127,6 +131,7 @@ export default function ReportsPage() {
     const [latestTelemetry, setLatestTelemetry] = useState<IotTelemetryReading | null>(null);
     const [rainfallWeather, setRainfallWeather] = useState<WeatherRecord | null>(null);
     const [reportSummary, setReportSummary] = useState<ReportSummary | null>(null);
+    const [aiReportSummary, setAiReportSummary] = useState<AiReportSummaryResponse | null>(null);
     const [reportHistory, setReportHistory] = useState<ReportRecord[]>([]);
     const [benchmarkResult, setBenchmarkResult] = useState<BenchmarkResponse | null>(null);
     const [benchmarkLoading, setBenchmarkLoading] = useState(false);
@@ -152,13 +157,14 @@ export default function ReportsPage() {
     useEffect(() => {
         let active = true;
 
-        Promise.allSettled([getLatestTelemetry(), getRainfallWeather(), getReportSummary(), getReportHistory()])
-            .then(([telemetryResult, weatherResult, summaryResult, historyResult]) => {
+        Promise.allSettled([getLatestTelemetry(), getRainfallWeather(), getReportSummary(), getReportHistory(), getReportAiSummary()])
+            .then(([telemetryResult, weatherResult, summaryResult, historyResult, aiSummaryResult]) => {
                 if (!active) return;
                 if (telemetryResult.status === "fulfilled") setLatestTelemetry(telemetryResult.value);
                 if (weatherResult.status === "fulfilled") setRainfallWeather(weatherResult.value);
                 if (summaryResult.status === "fulfilled") setReportSummary(summaryResult.value);
                 if (historyResult.status === "fulfilled") setReportHistory(historyResult.value);
+                if (aiSummaryResult.status === "fulfilled") setAiReportSummary(aiSummaryResult.value);
             });
 
         fetch(buildBackendUrl("/api/reports/readiness"))
@@ -675,6 +681,46 @@ export default function ReportsPage() {
                             </div>
 
                             <div className="reports-right-column">
+                                <section className="reports-panel reports-ai-summary-panel">
+                                    <div className="reports-panel-header">
+                                        <h2><Sparkles size={16} className="reports-panel-icon" /> AI Report Summary</h2>
+                                    </div>
+
+                                    {aiReportSummary ? (
+                                        <div className="reports-ai-summary-content">
+                                            <div className="reports-ai-summary-topline">
+                                                <strong>{aiReportSummary.title}</strong>
+                                                <span className={`reports-readiness-pill ${aiReportSummary.severity === "normal" ? "ready" : "pending"}`}>
+                                                    {aiReportSummary.severity}
+                                                </span>
+                                            </div>
+                                            <p>{aiReportSummary.summary}</p>
+                                            <div className="reports-ai-list">
+                                                {aiReportSummary.highlights.slice(0, 4).map((item) => (
+                                                    <div key={item} className="reports-ai-list-row">
+                                                        <CheckCircle2 size={14} />
+                                                        <span>{item}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="reports-ai-evidence">
+                                                {aiReportSummary.evidence.slice(0, 4).map((item) => (
+                                                    <div key={item.label}>
+                                                        <span>{item.label}</span>
+                                                        <strong>{item.value}</strong>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <small className="reports-export-note">Source: {aiReportSummary.source}</small>
+                                        </div>
+                                    ) : (
+                                        <div className="empty-state compact">
+                                            <strong>Summary pending</strong>
+                                            <span>Report AI summary will load when the backend responds.</span>
+                                        </div>
+                                    )}
+                                </section>
+
                                 <section className="reports-panel">
                                     <div className="reports-panel-header">
                                         <h2>Generate New Report</h2>

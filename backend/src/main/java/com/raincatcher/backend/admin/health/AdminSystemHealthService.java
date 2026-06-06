@@ -1,7 +1,6 @@
 package com.raincatcher.backend.admin.health;
 
 import com.raincatcher.backend.admin.audit.AdminAuditLogService;
-import com.raincatcher.backend.camera.CameraRecordRepository;
 import com.raincatcher.backend.forecast.ForecastRunRepository;
 import com.raincatcher.backend.iot.IotTelemetryEntity;
 import com.raincatcher.backend.iot.IotTelemetryRepository;
@@ -24,26 +23,26 @@ public class AdminSystemHealthService {
     private final IotTelemetryRepository telemetryRepository;
     private final WeatherRecordRepository weatherRecordRepository;
     private final ForecastRunRepository forecastRunRepository;
-    private final CameraRecordRepository cameraRecordRepository;
     private final ReportRepository reportRepository;
     private final AdminAuditLogService auditLogService;
+    private final ExternalServiceHealthCheckService externalServiceHealthCheckService;
 
     public AdminSystemHealthService(
             AdminSystemHealthRepository repository,
             IotTelemetryRepository telemetryRepository,
             WeatherRecordRepository weatherRecordRepository,
             ForecastRunRepository forecastRunRepository,
-            CameraRecordRepository cameraRecordRepository,
             ReportRepository reportRepository,
-            AdminAuditLogService auditLogService
+            AdminAuditLogService auditLogService,
+            ExternalServiceHealthCheckService externalServiceHealthCheckService
     ) {
         this.repository = repository;
         this.telemetryRepository = telemetryRepository;
         this.weatherRecordRepository = weatherRecordRepository;
         this.forecastRunRepository = forecastRunRepository;
-        this.cameraRecordRepository = cameraRecordRepository;
         this.reportRepository = reportRepository;
         this.auditLogService = auditLogService;
+        this.externalServiceHealthCheckService = externalServiceHealthCheckService;
     }
 
     @Transactional
@@ -53,8 +52,8 @@ public class AdminSystemHealthService {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("backendApi", "online");
         result.put("database", "connected");
-        result.put("cameraService", cameraRecordRepository.findTopByOrderByCreatedAtDesc().isPresent() ? "has_records" : "configured_no_records");
-        result.put("yoloService", "not_implemented");
+        result.put("cameraService", repository.findByServiceKey("camera_service").map(AdminSystemHealthEntity::getStatus).orElse("pending"));
+        result.put("yoloService", repository.findByServiceKey("yolo_service").map(AdminSystemHealthEntity::getStatus).orElse("pending"));
         result.put("weatherApi", weatherRecordRepository.findTopByOrderByRecordedAtDesc().isPresent() ? "has_records" : "no_records");
         result.put("forecastApi", forecastRunRepository.findTopByStatusOrderByCreatedAtDesc("completed").isPresent() ? "has_completed_runs" : "no_completed_runs");
         result.put("reportGeneration", reportRepository.count() >= 0 ? "ready" : "unknown");
@@ -81,10 +80,13 @@ public class AdminSystemHealthService {
 
     @Transactional
     public List<AdminSystemHealthEntity> refresh() {
+        ExternalServiceHealthResult camera = externalServiceHealthCheckService.checkCamera();
+        ExternalServiceHealthResult yolo = externalServiceHealthCheckService.checkYolo();
+
         upsert("backend_api", "Backend API status", "online", true, "Spring Boot backend is serving admin endpoints.");
         upsert("database", "Database status", "connected", true, "MariaDB connection is available through Spring Data repositories.");
-        upsert("camera_service", "Camera service status", cameraRecordRepository.findTopByOrderByCreatedAtDesc().isPresent() ? "has_records" : "configured_no_records", true, "Backend proxy target: http://192.168.100.137:5050/capture.");
-        upsert("yolo_service", "YOLO service status", "not_implemented", false, "Backend proxy target: http://192.168.100.137:5051/analyze-latest. Active service check is not implemented.");
+        upsert("camera_service", "Camera service status", camera.status(), true, camera.detail() + " Checked: " + camera.url());
+        upsert("yolo_service", "YOLO service status", yolo.status(), true, yolo.detail() + " Checked: " + yolo.url());
         upsert("esp32_telemetry", "ESP32 telemetry status", telemetryStatus(), true, "Latest ESP32 telemetry is read from iot_telemetry.");
         upsert("weather_api", "Weather API status", weatherRecordRepository.findTopByOrderByRecordedAtDesc().isPresent() ? "has_records" : "no_records", true, "Weather records are persisted when AccuWeather is configured.");
         upsert("forecast_api", "Forecast API status", forecastRunRepository.findTopByStatusOrderByCreatedAtDesc("completed").isPresent() ? "has_completed_runs" : "no_completed_runs", true, "Forecast API stores runs in forecast_runs.");

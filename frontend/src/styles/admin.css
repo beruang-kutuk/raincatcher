@@ -1479,3 +1479,135 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* ── Status Toast ────────────────────────────────────────────── */
+.status-toast {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    z-index: 9999;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    min-width: 280px;
+    max-width: 420px;
+    padding: 14px 16px;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.22);
+    animation: toast-slide-in 0.22s ease;
+}
+
+@keyframes toast-slide-in {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.status-toast-success { border-color: #4ade80; }
+.status-toast-error   { border-color: #f87171; }
+.status-toast-warning { border-color: #fbbf24; }
+.status-toast-loading { border-color: var(--purple); }
+
+.status-toast-icon {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.status-toast-success .status-toast-icon { background: rgba(74, 222, 128, 0.15); color: #4ade80; }
+.status-toast-error   .status-toast-icon { background: rgba(248, 113, 113, 0.15); color: #f87171; }
+.status-toast-warning .status-toast-icon { background: rgba(251, 191, 36, 0.15);  color: #fbbf24; }
+.status-toast-loading .status-toast-icon { background: color-mix(in srgb, var(--purple) 15%, transparent); color: var(--purple); }
+
+.status-toast-spin { animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.status-toast-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.status-toast-body strong {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+}
+.status-toast-body span {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.45;
+}
+
+.status-toast-close {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--muted);
+    padding: 2px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.status-toast-close:hover { color: var(--text); background: var(--card-soft); }
+
+/* ── Card value overflow guard ───────────────────────────────── */
+.admin-summary-value {
+    overflow-wrap: break-word;
+    word-break: break-word;
+    hyphens: auto;
+    font-size: clamp(14px, 2.5vw, 22px);
+}
+
+/* ── Delete icon button (danger tint) ───────────────────────── */
+.admin-icon-btn-danger {
+    color: #f87171;
+}
+.admin-icon-btn-danger:hover:not(:disabled) {
+    background: rgba(248, 113, 113, 0.12);
+    color: #f87171;
+}
+
+/* ── Confirm modal overlay ───────────────────────────────────── */
+.confirm-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9998;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+.confirm-modal {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 28px 24px 24px;
+    max-width: 380px;
+    width: 100%;
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.3);
+}
+.confirm-modal h3 {
+    margin: 0 0 10px;
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text);
+}
+.confirm-modal p {
+    margin: 0 0 22px;
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.55;
+}
+.confirm-modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}

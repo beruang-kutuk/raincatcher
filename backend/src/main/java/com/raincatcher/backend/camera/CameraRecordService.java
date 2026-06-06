@@ -3,6 +3,7 @@ package com.raincatcher.backend.camera;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.raincatcher.backend.notification.NotificationService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
@@ -26,16 +27,19 @@ public class CameraRecordService {
 
     private final CameraRecordRepository repository;
     private final ObjectMapper objectMapper;
+    private final NotificationService notificationService;
     private final RestClient restClient;
     private final String rpiBaseUrl;
 
     public CameraRecordService(
             CameraRecordRepository repository,
             ObjectMapper objectMapper,
-            @Value("${camera.rpi.base-url}") String rpiBaseUrl
+            NotificationService notificationService,
+            @Value("${ml.service.base-url:http://192.168.100.137:5051}") String rpiBaseUrl
     ) {
         this.repository = repository;
         this.objectMapper = objectMapper;
+        this.notificationService = notificationService;
         this.rpiBaseUrl = stripTrailingSlash(rpiBaseUrl);
 
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
@@ -71,7 +75,9 @@ public class CameraRecordService {
         record.setAiRecommendation(text(response, "ai_recommendation"));
         record.setFutureNote(text(response, "future_ml_note"));
 
-        return repository.save(record);
+        CameraRecordEntity saved = repository.save(record);
+        notificationService.createOrUpdateFromCameraRecord(saved);
+        return saved;
     }
 
     @Transactional
@@ -88,7 +94,9 @@ public class CameraRecordService {
         record.setAiRecommendation(firstText(response, "message", analysis, "ai_recommendation"));
         record.setFutureNote(buildCaptureMetadata(response));
 
-        return repository.save(record);
+        CameraRecordEntity saved = repository.save(record);
+        notificationService.createOrUpdateFromCameraRecord(saved);
+        return saved;
     }
 
     @Transactional
@@ -107,11 +115,13 @@ public class CameraRecordService {
         record.setYoloModel(text(yolo, "model"));
         record.setDetectionCount(integer(yolo, "detection_count"));
         record.setDetectionsJson(jsonString(yolo.path("detections")));
-        record.setAiRecommendation(text(yolo, "ai_recommendation"));
+        record.setAiRecommendation(yoloRecommendation(yolo));
         record.setFutureNote(text(yolo, "future_training_note"));
         record.setYoloFrameUrl(getYoloFrameUrl());
 
-        return repository.save(record);
+        CameraRecordEntity saved = repository.save(record);
+        notificationService.createOrUpdateFromYoloRecord(saved);
+        return saved;
     }
 
     public Optional<CameraRecordEntity> getLatestRecord() {
@@ -250,6 +260,56 @@ public class CameraRecordService {
         } catch (JsonProcessingException ex) {
             return null;
         }
+    }
+
+    private String yoloRecommendation(JsonNode yolo) {
+        String label = firstDetectionLabel(yolo.path("detections"));
+        String normalizedLabel = normalizeToken(label);
+        Map<String, String> knownAdvice = Map.of(
+                "leaf", "Remove the leaf, inspect the cover or inlet mesh, then retest turbidity.",
+                "debris", "Clean visible debris and inspect the tank filter.",
+                "insect", "Inspect the tank sealing and cover for gaps.",
+                "trash", "Remove the object and check contamination risk.",
+                "foreign_object", "Inspect immediately and log maintenance."
+        );
+        if (knownAdvice.containsKey(normalizedLabel)) {
+            return knownAdvice.get(normalizedLabel);
+        }
+        Integer detectionCount = integer(yolo, "detection_count");
+        if (detectionCount != null && detectionCount == 0) {
+            return "No major object detected in the camera view.";
+        }
+        return text(yolo, "ai_recommendation");
+    }
+
+    private String firstDetectionLabel(JsonNode detections) {
+        if (detections == null || !detections.isArray()) {
+            return "";
+        }
+        for (JsonNode detection : detections) {
+            String label = firstTextValue(detection, "label", "className", "class_name", "type", "object_type");
+            if (label != null) {
+                return label;
+            }
+        }
+        return "";
+    }
+
+    private String firstTextValue(JsonNode node, String... fieldNames) {
+        for (String fieldName : fieldNames) {
+            String value = text(node, fieldName);
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private String normalizeToken(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        return value.trim().toLowerCase().replaceAll("[^a-z0-9]+", "_").replaceAll("^_+|_+$", "");
     }
 
     private String stripTrailingSlash(String value) {

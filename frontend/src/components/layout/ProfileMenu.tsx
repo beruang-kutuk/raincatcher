@@ -6,6 +6,7 @@ import {
     ROLE_LABELS,
 } from "../../auth/rbac";
 import { logoutWithBackend } from "../../services/authApi";
+import { resolveAvatarUrl } from "../../services/apiConfig";
 import SessionLoadingOverlay from "./SessionLoadingOverlay";
 
 export default function ProfileMenu() {
@@ -16,7 +17,7 @@ export default function ProfileMenu() {
     const roleLabel = role ? ROLE_LABELS[role] : "Guest";
     const token = localStorage.getItem("rc_token") ?? "";
     const displayName = localStorage.getItem("rc_display_name") || roleLabel;
-    const avatarUrl = localStorage.getItem("rc_avatar_url") || "";
+    const avatarUrl = resolveAvatarUrl(localStorage.getItem("rc_avatar_url"));
     const initials = displayName
         .split(" ")
         .map((part) => part[0])

@@ -344,7 +344,7 @@ export const systemHealthMetrics: HealthMetric[] = [
     },
     {
         label: "YOLO service status",
-        value: "Not implemented",
+        value: "Not Configured",
         helper: "YOLO analyzer service checks are exposed as backend readiness status.",
         status: "warning",
     },

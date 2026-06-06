@@ -601,11 +601,49 @@
 }
 
 .yolo-frame-preview {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     margin-top: 8px;
     border-radius: 14px;
     overflow: hidden;
     border: 1px solid var(--border);
     background: #0b1220;
+    min-height: 260px;
+    aspect-ratio: 16 / 9;
+}
+
+.yolo-frame-image {
+    max-width: 100%;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 14px;
+}
+
+.yolo-frame-image:not(.loaded) {
+    opacity: 0;
+}
+
+.yolo-frame-state {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+    background: #0b1220;
+    color: #f8f1e7;
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1.45;
+    text-align: center;
+}
+
+.yolo-frame-state.error {
+    background: color-mix(in srgb, #0b1220 82%, #991b1b);
+    color: #fecaca;
 }
 
 .yolo-status-pill {
@@ -730,6 +768,11 @@
     }
 
     .tank-live-frame {
+        aspect-ratio: 4 / 3;
+    }
+
+    .yolo-frame-preview {
+        min-height: 210px;
         aspect-ratio: 4 / 3;
     }
 }

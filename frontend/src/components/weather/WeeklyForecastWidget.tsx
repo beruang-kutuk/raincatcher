@@ -102,17 +102,20 @@ export default function WeeklyForecastWidget() {
             </div>
 
             <div className="wx-grid">
-              {[
-                ["Rain", fmtRainfall(rainMm)],
-                ["Rain prob.", rainProb != null ? `${rainProb.toFixed(0)}%` : "--"],
-                ["Humidity", fmtNum(current?.humidity ?? display?.humidity, "%")],
-                ["Wind", fmtWind(current?.windSpeed ?? display?.windSpeed)],
-              ].map(([label, value]) => (
+              {(
+                [
+                  ["Rain", fmtRainfall(rainMm), "🌧"],
+                  ["Rain prob.", rainProb != null ? `${rainProb.toFixed(0)}%` : "--", "☔"],
+                  ["Humidity", fmtNum(current?.humidity ?? display?.humidity, "%"), "💧"],
+                  ["Wind", fmtWind(current?.windSpeed ?? display?.windSpeed), "💨"],
+                ] as [string, string, string][]
+              ).map(([label, value, icon]) => (
                 <div className="wx-card" key={label}>
                   <div className="wx-card-top">
                     <div className="wx-day">{label}</div>
-                    <div className="wx-icon" aria-hidden>{value}</div>
+                    <div className="wx-icon" aria-hidden>{icon}</div>
                   </div>
+                  <div className="wx-card-value">{value}</div>
                 </div>
               ))}
             </div>

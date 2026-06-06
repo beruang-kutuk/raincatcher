@@ -931,7 +931,7 @@ body.dark-mode .mini-chart-axis-line {
 .notification-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     gap: 12px;
     padding: 4px 4px 12px;
     border-bottom: 1px solid var(--border);
@@ -961,9 +961,50 @@ body.dark-mode .mini-chart-axis-line {
     display: grid;
     grid-template-columns: 10px 1fr;
     gap: 10px;
+    width: 100%;
+    border: none;
     padding: 12px;
     border-radius: 14px;
     background: var(--card-soft);
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+}
+
+.notification-item.unread {
+    box-shadow: inset 3px 0 0 var(--purple);
+}
+
+.notification-item.read {
+    opacity: 0.78;
+}
+
+.notification-read-all {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--input);
+    color: var(--purple);
+    min-height: 32px;
+    padding: 0 10px;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.notification-read-all:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+.notification-error {
+    margin: 0 14px 10px;
+    padding: 9px 10px;
+    border-radius: 10px;
+    background: rgba(220, 38, 38, 0.10);
+    color: #b91c1c;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.4;
 }
 
 .notification-alert-dot {
@@ -997,7 +1038,7 @@ body.dark-mode .mini-chart-axis-line {
     color: var(--text);
 }
 
-.notification-item-top span {
+.notification-item-top span:not(.severity-badge) {
     font-size: 12px;
     color: var(--muted);
     white-space: nowrap;
@@ -1008,6 +1049,15 @@ body.dark-mode .mini-chart-axis-line {
     font-size: 13px;
     color: var(--muted);
     line-height: 1.45;
+}
+
+.notification-time {
+    margin-top: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--muted);
 }
 
 .notification-view-all {
@@ -1021,6 +1071,173 @@ body.dark-mode .mini-chart-axis-line {
     font-size: 14px;
     font-weight: 800;
     cursor: pointer;
+}
+
+/* AI WATER ADVISOR */
+.ai-advisor-card {
+    margin-bottom: 24px;
+}
+
+.ai-advisor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+}
+
+.ai-advisor-header h2 {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ai-advisor-header h2 svg {
+    color: var(--purple);
+}
+
+.ai-advisor-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.ai-advisor-icon-btn {
+    width: 38px;
+    height: 38px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--input);
+    color: var(--text);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.ai-advisor-icon-btn:disabled,
+.ai-human-action-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.62;
+}
+
+.ai-advisor-content {
+    display: grid;
+    gap: 16px;
+}
+
+.ai-advisor-summary {
+    border: 1px solid color-mix(in srgb, var(--purple) 18%, transparent);
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--purple) 7%, var(--card-soft));
+    padding: 16px;
+}
+
+.ai-advisor-summary h3 {
+    margin: 0 0 6px;
+    color: var(--text);
+    font-size: 17px;
+    font-weight: 800;
+}
+
+.ai-advisor-summary p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.ai-evidence-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.ai-evidence-item {
+    min-height: 76px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--card-soft);
+    padding: 12px;
+    display: grid;
+    gap: 6px;
+}
+
+.ai-evidence-item span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.ai-evidence-item strong {
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.ai-evidence-warning {
+    border-color: rgba(217, 119, 6, 0.32);
+}
+
+.ai-evidence-critical {
+    border-color: rgba(220, 38, 38, 0.34);
+}
+
+.ai-advisor-actions-list {
+    display: grid;
+    gap: 8px;
+}
+
+.ai-advisor-action-row {
+    display: grid;
+    grid-template-columns: 18px 1fr;
+    gap: 8px;
+    align-items: start;
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.ai-advisor-action-row svg {
+    color: var(--purple);
+    margin-top: 2px;
+}
+
+.ai-human-action-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.ai-human-action-btn {
+    min-height: 38px;
+    border: 1px solid color-mix(in srgb, var(--purple) 24%, transparent);
+    border-radius: 12px;
+    background: var(--input);
+    color: var(--text);
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0 12px;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.ai-human-action-btn svg {
+    color: var(--purple);
+}
+
+.ai-advisor-feedback {
+    border: 1px solid rgba(22, 163, 74, 0.18);
+    border-radius: 12px;
+    background: #f0fdf4;
+    color: #166534;
+    padding: 10px 12px;
+    font-size: 13px;
+    font-weight: 700;
 }
 
 /* WEATHER WIDGET */
@@ -1290,8 +1507,28 @@ body.dark-mode .anomaly-item,
 body.dark-mode .notification-item,
 body.dark-mode .forecast-recommendation-item,
 body.dark-mode .forecast-insight-item,
-body.dark-mode .camera-feed-fallback {
+body.dark-mode .camera-feed-fallback,
+body.dark-mode .ai-evidence-item {
     background: var(--card-soft) !important;
+}
+
+body.dark-mode .ai-advisor-summary {
+    background: color-mix(in srgb, var(--purple2) 8%, var(--card-soft));
+    border-color: color-mix(in srgb, var(--purple2) 22%, transparent);
+}
+
+body.dark-mode .notification-read-all,
+body.dark-mode .ai-advisor-icon-btn,
+body.dark-mode .ai-human-action-btn {
+    background: var(--input) !important;
+    color: var(--text) !important;
+    border-color: var(--border) !important;
+}
+
+body.dark-mode .ai-advisor-feedback {
+    background: rgba(34, 197, 94, 0.16);
+    border-color: rgba(34, 197, 94, 0.24);
+    color: #86efac;
 }
 
 body.dark-mode .status-pill,
@@ -1444,6 +1681,14 @@ body.dark-mode .notification-view-all:hover {
 
     .camera-status-grid {
         grid-template-columns: 1fr;
+    }
+
+    .ai-evidence-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .ai-advisor-header {
+        flex-direction: column;
     }
 }
 

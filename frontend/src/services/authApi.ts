@@ -9,6 +9,7 @@ export type AuthUser = {
     phone: string;
     role: UserRole;
     status: string;
+    authProvider?: string;
     avatarUrl?: string;
     profileImageUrl?: string;
     profileImageData?: string;
@@ -28,6 +29,18 @@ export async function loginWithBackend(username: string, password: string): Prom
     });
     if (!response.ok) {
         throw new Error("Backend login failed");
+    }
+    return (await response.json()) as LoginResponse;
+}
+
+export async function loginWithGoogle(credential: string): Promise<LoginResponse> {
+    const response = await fetch(buildBackendUrl("/api/auth/google"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential }),
+    });
+    if (!response.ok) {
+        throw new Error(await readAuthError(response, "Google login failed"));
     }
     return (await response.json()) as LoginResponse;
 }
@@ -85,4 +98,37 @@ export async function uploadAvatar(token: string, avatarUrl: string): Promise<Au
         throw new Error("Avatar update failed");
     }
     return (await response.json()) as AuthUser;
+}
+
+export async function requestPasswordReset(email: string): Promise<{ message: string }> {
+    const response = await fetch(buildBackendUrl("/api/auth/forgot-password"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+    });
+    if (!response.ok) {
+        throw new Error(await readAuthError(response, "Password reset request failed"));
+    }
+    return (await response.json()) as { message: string };
+}
+
+export async function resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+    const response = await fetch(buildBackendUrl("/api/auth/reset-password"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, newPassword }),
+    });
+    if (!response.ok) {
+        throw new Error(await readAuthError(response, "Password reset failed"));
+    }
+    return (await response.json()) as { message: string };
+}
+
+async function readAuthError(response: Response, fallback: string) {
+    try {
+        const body = (await response.json()) as { message?: string };
+        return body.message || fallback;
+    } catch {
+        return fallback;
+    }
 }

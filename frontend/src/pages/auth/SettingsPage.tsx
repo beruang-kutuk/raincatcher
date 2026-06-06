@@ -5,6 +5,7 @@ import "../../styles/settings.css";
 import Sidebar from "../../components/layout/Sidebar";
 import ProfileMenu from "../../components/layout/ProfileMenu";
 import SessionLoadingOverlay from "../../components/layout/SessionLoadingOverlay";
+import ActionStatusModal, { type ActionStatusState } from "../../components/ActionStatusModal";
 import {
     clearSession,
     getStoredRole,
@@ -25,8 +26,9 @@ import { saveFrontendPlaceholder } from "../../services/frontendPersistence";
 import {
     getUserProfile,
     updateUserProfile,
-    uploadUserProfilePicture,
+    uploadUserProfilePictureFile,
 } from "../../services/userProfileApi";
+import { resolveAvatarUrl } from "../../services/apiConfig";
 import { RPI_CAMERA_STREAM_URL } from "../../config/camera";
 
 type SettingsTab =
@@ -42,6 +44,13 @@ type SettingsTab =
     | "adminSystem";
 
 type SettingsSaveAction = "settings" | "profile";
+
+type SettingsStatusModal = {
+    open: boolean;
+    state: ActionStatusState;
+    message: string;
+    detail?: string;
+};
 
 type ToggleProps = {
     label: string;
@@ -62,7 +71,7 @@ const baseTabs: Array<{ id: SettingsTab; label: string }> = [
     { id: "anomalies", label: "Anomaly Workflow" },
 ];
 
-const dashboardPreferenceLabels = {
+const labDashboardPreferenceLabels = {
     liveCameraFeed: "Live camera feed",
     phCard: "pH card",
     turbidityCard: "Turbidity card",
@@ -71,6 +80,19 @@ const dashboardPreferenceLabels = {
     forecastSummary: "Forecast summary",
     anomalySummary: "Anomaly summary",
     latestReports: "Latest reports",
+};
+
+const adminDashboardPreferenceLabels = {
+    adminAuthorityCard: "Admin authority card",
+    managedUsersCard: "Managed users card",
+    suspendedUsersCard: "Suspended users card",
+    rolePoliciesCard: "Role policies card",
+    systemHealthCard: "System health card",
+    deviceStatusCard: "Device status card",
+    forecastApiStatusCard: "Forecast API status card",
+    auditLogsCard: "Audit logs card",
+    diagnosticsCard: "Diagnostics card",
+    reportTemplatesCard: "Report templates card",
 };
 
 const notificationPreferenceLabels = {
@@ -156,7 +178,11 @@ export default function SettingsPage() {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [activeTab, setActiveTab] = useState<SettingsTab>("profile");
     const [theme, setTheme] = useState<ThemePreference>(() => getStoredThemePreference());
-    const [saveMessage, setSaveMessage] = useState("");
+    const [statusModal, setStatusModal] = useState<SettingsStatusModal>({
+        open: false,
+        state: "loading",
+        message: "",
+    });
     const [savingAction, setSavingAction] = useState<SettingsSaveAction | null>(null);
     const [completedAction, setCompletedAction] = useState<SettingsSaveAction | null>(null);
     const [loggingOut, setLoggingOut] = useState(false);
@@ -176,20 +202,34 @@ export default function SettingsPage() {
         password: "",
     });
     const [profilePhotoName, setProfilePhotoName] = useState("No photo selected");
-    const [profileAvatarUrl, setProfileAvatarUrl] = useState(() => localStorage.getItem("rc_avatar_url") ?? "");
+    const [profileAvatarUrl, setProfileAvatarUrl] = useState(() => resolveAvatarUrl(localStorage.getItem("rc_avatar_url")));
     const [appearance, setAppearance] = useState({
         sidebarPreference: "Expanded",
     });
-    const [dashboardPrefs, setDashboardPrefs] = useState({
-        liveCameraFeed: true,
-        phCard: true,
-        turbidityCard: true,
-        waterTemperatureCard: true,
-        tankLevelCard: true,
-        forecastSummary: true,
-        anomalySummary: true,
-        latestReports: true,
-    });
+    const labDashboardDefaults = {
+        liveCameraFeed: true, phCard: true, turbidityCard: true,
+        waterTemperatureCard: true, tankLevelCard: true, forecastSummary: true,
+        anomalySummary: true, latestReports: true,
+    };
+    const adminDashboardDefaults = {
+        adminAuthorityCard: true, managedUsersCard: true, suspendedUsersCard: true,
+        rolePoliciesCard: true, systemHealthCard: true, deviceStatusCard: true,
+        forecastApiStatusCard: true, auditLogsCard: true, diagnosticsCard: true,
+        reportTemplatesCard: true,
+    };
+    function loadDashboardPrefs<T extends object>(storageKey: string, defaults: T): T {
+        try {
+            const stored = localStorage.getItem(storageKey);
+            if (stored) return { ...defaults, ...(JSON.parse(stored) as Partial<T>) };
+        } catch { /* ignore */ }
+        return defaults;
+    }
+    const [labDashPrefs, setLabDashPrefs] = useState(() =>
+        loadDashboardPrefs("rc_dashboard_prefs_LAB_ASSISTANT", labDashboardDefaults)
+    );
+    const [adminDashPrefs, setAdminDashPrefs] = useState(() =>
+        loadDashboardPrefs("rc_dashboard_prefs_SUPER_ADMIN", adminDashboardDefaults)
+    );
     const [notificationPrefs, setNotificationPrefs] = useState({
         phAbnormal: true,
         highTurbidity: true,
@@ -238,29 +278,42 @@ export default function SettingsPage() {
             .then((user) => {
                 if (!active) return;
                 const displayName = user.displayName || user.username || user.email?.split("@")[0] || fallbackProfile.name;
-                const avatarUrl = user.profileImageData || user.profileImageUrl || user.avatarUrl || "";
+                const rawAvatar = user.profileImageUrl || user.avatarUrl || user.profileImageData || "";
                 setProfileForm((prev) => ({
                     ...prev,
                     displayName,
                     phone: user.phone || "",
                 }));
                 setProfileEmail(user.email || "");
-                if (avatarUrl) {
-                    setProfileAvatarUrl(avatarUrl);
-                    localStorage.setItem("rc_avatar_url", avatarUrl);
+                if (rawAvatar) {
+                    setProfileAvatarUrl(resolveAvatarUrl(rawAvatar));
+                    localStorage.setItem("rc_avatar_url", rawAvatar);
                 }
                 localStorage.setItem("rc_display_name", displayName);
             })
             .catch(() => {
-                setSaveMessage("Profile could not be loaded from backend.");
+                showStatusModal("error", "Profile could not be loaded from backend.");
             });
         return () => { active = false; };
     }, [fallbackProfile.name]);
 
+    function showStatusModal(state: ActionStatusState, message: string, detail?: string) {
+        setStatusModal({ open: true, state, message, detail });
+        if (state === "success") {
+            globalThis.setTimeout(() => {
+                setStatusModal((current) =>
+                    current.state === "success" && current.message === message
+                        ? { ...current, open: false }
+                        : current
+                );
+            }, 1400);
+        }
+    }
+
     function handleThemeChange(value: ThemePreference) {
         setTheme(value);
         saveThemePreference(value);
-        setSaveMessage(`Appearance preference saved for this session.`);
+        showStatusModal("success", "Appearance preference saved for this session.");
     }
 
     function handleLogout() {
@@ -277,27 +330,33 @@ export default function SettingsPage() {
         payload: unknown,
     ) {
         setSavingAction(action);
-        setSaveMessage("");
+        showStatusModal("loading", "Please wait", "Saving changes...");
 
         try {
             await saveFrontendPlaceholder(label, payload);
-            setSaveMessage("Saved successfully. Settings are stored in frontend state and ready for backend persistence.");
+            showStatusModal("success", "Saved successfully.", "Settings are stored in frontend state and ready for backend persistence.");
             setCompletedAction(action);
             globalThis.setTimeout(() => {
                 setCompletedAction((current) => (current === action ? null : current));
             }, 1800);
-        } catch {
-            setSaveMessage("Settings could not be saved. Backend placeholder action is ready to retry.");
+        } catch (error) {
+            showStatusModal(
+                "error",
+                error instanceof Error ? error.message : "Unable to save changes.",
+                "Backend placeholder action is ready to retry."
+            );
         } finally {
             setSavingAction(null);
         }
     }
 
     function handlePreferenceSave() {
+        localStorage.setItem("rc_dashboard_prefs_LAB_ASSISTANT", JSON.stringify(labDashPrefs));
+        localStorage.setItem("rc_dashboard_prefs_SUPER_ADMIN", JSON.stringify(adminDashPrefs));
         void runSettingsSave("settings", "User settings", {
             theme,
             appearance,
-            dashboardPrefs,
+            dashboardPrefs: isAdmin ? adminDashPrefs : labDashPrefs,
             notificationPrefs,
             cameraPrefs,
             reportPrefs,
@@ -315,14 +374,14 @@ export default function SettingsPage() {
             return;
         }
         setSavingAction("profile");
-        setSaveMessage("");
+        showStatusModal("loading", "Please wait", "Saving profile changes...");
         updateUserProfile({
             displayName: profileForm.displayName,
             phone: profileForm.phone,
             password: profileForm.password || undefined,
         })
             .then((updated) => {
-                setSaveMessage("Profile saved successfully.");
+                showStatusModal("success", "Profile saved successfully.");
                 setCompletedAction("profile");
                 if (updated.displayName) {
                     setProfileForm((prev) => ({ ...prev, displayName: updated.displayName }));
@@ -330,8 +389,8 @@ export default function SettingsPage() {
                 localStorage.setItem("rc_display_name", updated.displayName || updated.username || updated.email?.split("@")[0] || "");
                 globalThis.setTimeout(() => setCompletedAction((c) => (c === "profile" ? null : c)), 1800);
             })
-            .catch(() => {
-                setSaveMessage("Profile could not be saved. Check your connection.");
+            .catch((error) => {
+                showStatusModal("error", error instanceof Error ? error.message : "Profile could not be saved. Check your connection.");
             })
             .finally(() => {
                 setSavingAction(null);
@@ -376,10 +435,6 @@ export default function SettingsPage() {
                             </div>
                         </div>
 
-                        <div className="settings-feedback-row" aria-live="polite">
-                            {saveMessage && <span className="settings-save-message">{saveMessage}</span>}
-                        </div>
-
                         <div className="settings-layout">
                             <aside className="settings-tabs" aria-label="Settings sections">
                                 {visibleTabs.map((tab) => (
@@ -422,28 +477,31 @@ export default function SettingsPage() {
                                                             setProfilePhotoName(file.name);
                                                             const reader = new FileReader();
                                                             reader.onload = () => {
-                                                                const dataUrl = reader.result as string;
-                                                                setProfileAvatarUrl(dataUrl);
-                                                                localStorage.setItem("rc_avatar_url", dataUrl);
-                                                                const token = localStorage.getItem("rc_token") ?? "";
-                                                                if (token) {
-                                                                    setSavingAction("profile");
-                                                                    uploadUserProfilePicture(dataUrl)
-                                                                        .then((updated) => {
-                                                                            const avatar = updated.profileImageData || updated.profileImageUrl || updated.avatarUrl || dataUrl;
-                                                                            setProfileAvatarUrl(avatar);
-                                                                            localStorage.setItem("rc_avatar_url", avatar);
-                                                                            setSaveMessage("Profile picture uploaded successfully.");
-                                                                        })
-                                                                        .catch(() => {
-                                                                            setSaveMessage("Profile picture could not be uploaded to backend.");
-                                                                        })
-                                                                        .finally(() => {
-                                                                            setSavingAction(null);
-                                                                        });
-                                                                }
+                                                                setProfileAvatarUrl(reader.result as string);
                                                             };
                                                             reader.readAsDataURL(file);
+                                                            const token = localStorage.getItem("rc_token") ?? "";
+                                                            if (token) {
+                                                                setSavingAction("profile");
+                                                                showStatusModal("loading", "Please wait", "Uploading profile picture...");
+                                                                uploadUserProfilePictureFile(file)
+                                                                    .then((updated) => {
+                                                                        const rawUrl = updated.profileImageUrl || updated.avatarUrl || updated.profileImageData || "";
+                                                                        const resolved = resolveAvatarUrl(rawUrl);
+                                                                        setProfileAvatarUrl(resolved || (reader.result as string));
+                                                                        localStorage.setItem("rc_avatar_url", rawUrl);
+                                                                        showStatusModal("success", "Profile picture uploaded successfully.");
+                                                                    })
+                                                                    .catch((error) => {
+                                                                        showStatusModal(
+                                                                            "error",
+                                                                            error instanceof Error ? error.message : "Profile picture could not be uploaded to backend."
+                                                                        );
+                                                                    })
+                                                                    .finally(() => {
+                                                                        setSavingAction(null);
+                                                                    });
+                                                            }
                                                         }}
                                                     />
                                                 </label>
@@ -580,23 +638,40 @@ export default function SettingsPage() {
                                     <section className="settings-panel">
                                         <PanelHeader
                                             title="Dashboard Preferences"
-                                            description="Choose which operational cards appear in your monitoring workspace."
+                                            description={isAdmin
+                                                ? "Choose which admin control cards appear on your Admin Dashboard."
+                                                : "Choose which monitoring cards appear on your Lab Dashboard."}
                                         />
 
                                         <div className="settings-option-list">
-                                            {Object.entries(dashboardPreferenceLabels).map(([key, label]) => (
-                                                <SettingsToggle
-                                                    key={key}
-                                                    label={label}
-                                                    checked={dashboardPrefs[key as keyof typeof dashboardPrefs]}
-                                                    onChange={() =>
-                                                        setDashboardPrefs((prev) => ({
-                                                            ...prev,
-                                                            [key]: !prev[key as keyof typeof dashboardPrefs],
-                                                        }))
-                                                    }
-                                                />
-                                            ))}
+                                            {isAdmin
+                                                ? Object.entries(adminDashboardPreferenceLabels).map(([key, label]) => (
+                                                    <SettingsToggle
+                                                        key={key}
+                                                        label={label}
+                                                        checked={adminDashPrefs[key as keyof typeof adminDashPrefs]}
+                                                        onChange={() =>
+                                                            setAdminDashPrefs((prev) => ({
+                                                                ...prev,
+                                                                [key]: !prev[key as keyof typeof adminDashPrefs],
+                                                            }))
+                                                        }
+                                                    />
+                                                ))
+                                                : Object.entries(labDashboardPreferenceLabels).map(([key, label]) => (
+                                                    <SettingsToggle
+                                                        key={key}
+                                                        label={label}
+                                                        checked={labDashPrefs[key as keyof typeof labDashPrefs]}
+                                                        onChange={() =>
+                                                            setLabDashPrefs((prev) => ({
+                                                                ...prev,
+                                                                [key]: !prev[key as keyof typeof labDashPrefs],
+                                                            }))
+                                                        }
+                                                    />
+                                                ))
+                                            }
                                         </div>
                                     </section>
                                 )}
@@ -996,6 +1071,14 @@ export default function SettingsPage() {
                     </div>
                 </main>
             </div>
+            <ActionStatusModal
+                open={statusModal.open}
+                state={statusModal.state}
+                title={statusModal.state === "loading" ? "Saving changes..." : undefined}
+                message={statusModal.message}
+                detail={statusModal.detail}
+                onClose={() => setStatusModal((prev) => ({ ...prev, open: false }))}
+            />
             {loggingOut && <SessionLoadingOverlay message="Logging out..." />}
         </div>
     );

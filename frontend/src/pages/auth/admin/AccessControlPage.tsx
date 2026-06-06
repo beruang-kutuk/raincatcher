@@ -1,10 +1,11 @@
-import { Fragment, useEffect, useMemo, useState, type FormEvent } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import {
     Check,
     Eye,
     Pause,
     Pencil,
     ShieldCheck,
+    Trash2,
     UserCog,
     Users,
 } from "lucide-react";
@@ -12,6 +13,7 @@ import "../../../styles/dashboard.css";
 import "../../../styles/admin.css";
 import Sidebar from "../../../components/layout/Sidebar";
 import AdminTopbar from "../../../components/layout/AdminTopbar";
+import StatusToast, { type ToastState } from "../../../components/StatusToast";
 import {
     getPermissionLabel,
     permissionDefinitions,
@@ -23,6 +25,7 @@ import {
 } from "../../../services/adminData";
 import {
     createAdminUser,
+    deleteAdminUser,
     getAdminUsers,
     updateAdminUser,
     updateAdminUserStatus,
@@ -84,8 +87,10 @@ function toAdminUserRecord(user: ManagedUser): Partial<AdminUserRecord> {
 export default function AccessControlPage() {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [users, setUsers] = useState<ManagedUser[]>([]);
-    const [backendStatus, setBackendStatus] = useState("");
+    const [toast, setToast] = useState<ToastState>(null);
+    const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
     const [selectedUser, setSelectedUser] = useState<SelectedUserState>(null);
+    const dismissToast = useCallback(() => setToast(null), []);
     const [selectedRole, setSelectedRole] = useState(rolePolicies[0]);
     const [newUser, setNewUser] = useState<NewUserForm>({
         name: "",
@@ -111,9 +116,8 @@ export default function AccessControlPage() {
                 const backendUsers = await getAdminUsers();
                 if (!active) return;
                 setUsers(backendUsers.map(toManagedUser));
-                setBackendStatus("");
             } catch {
-                if (active) setBackendStatus("Backend users unavailable. Sign in as Super Admin and check the Raspberry Pi backend.");
+                if (active) setToast({ type: "error", title: "Backend unavailable", message: "Sign in as Super Admin and check the Raspberry Pi backend." });
             }
         }
 
@@ -124,9 +128,8 @@ export default function AccessControlPage() {
     async function persistUser(user: ManagedUser) {
         try {
             await updateAdminUser(user.id, toAdminUserRecord(user));
-            setBackendStatus("");
         } catch {
-            setBackendStatus("Unable to save user changes to backend.");
+            setToast({ type: "error", title: "Save failed", message: "Unable to save user changes to backend." });
         }
     }
 
@@ -164,8 +167,7 @@ export default function AccessControlPage() {
             prev.map((user) => user.id === id && user.role !== "SUPER_ADMIN" ? changedUser : user),
         );
         void updateAdminUserStatus(changedUser.id, changedUser.status)
-            .then(() => setBackendStatus(""))
-            .catch(() => setBackendStatus("Unable to update user status in backend."));
+            .catch(() => setToast({ type: "error", title: "Status update failed", message: "Unable to update user status in backend." }));
     }
 
     async function addUser(event: FormEvent) {
@@ -178,18 +180,19 @@ export default function AccessControlPage() {
         const confirmPassword = newUser.confirmPassword;
 
         if (!name || !email) {
-            setBackendStatus("Name and email are required.");
+            setToast({ type: "error", title: "User creation failed", message: "Name and email are required." });
             return;
         }
         if (password.length < 8) {
-            setBackendStatus("Password must be at least 8 characters.");
+            setToast({ type: "error", title: "User creation failed", message: "Password must be at least 8 characters." });
             return;
         }
         if (password !== confirmPassword) {
-            setBackendStatus("Password and confirm password must match.");
+            setToast({ type: "error", title: "User creation failed", message: "Password and confirm password must match." });
             return;
         }
 
+        setToast({ type: "loading", title: "Creating user..." });
         try {
             await createAdminUser({
                 username: email,
@@ -202,19 +205,25 @@ export default function AccessControlPage() {
             });
             const backendUsers = await getAdminUsers();
             setUsers(backendUsers.map(toManagedUser));
-            setBackendStatus("");
+            setToast({ type: "success", title: "User created", message: `${name} has been added successfully.` });
+            setNewUser({ name: "", email: "", phone: "", role: "LAB_ASSISTANT", password: "", confirmPassword: "" });
         } catch {
-            setBackendStatus("Unable to create backend user. Check the Super Admin session and Raspberry Pi backend.");
+            setToast({ type: "error", title: "User creation failed", message: "Check the Super Admin session and Raspberry Pi backend." });
         }
+    }
 
-        setNewUser({
-            name: "",
-            email: "",
-            phone: "",
-            role: "LAB_ASSISTANT",
-            password: "",
-            confirmPassword: "",
-        });
+    async function handleDeleteUser(id: number) {
+        const target = users.find((u) => u.id === id);
+        setConfirmDeleteId(null);
+        setToast({ type: "loading", title: "Deleting user..." });
+        try {
+            await deleteAdminUser(id);
+            const backendUsers = await getAdminUsers();
+            setUsers(backendUsers.map(toManagedUser));
+            setToast({ type: "success", title: "User deleted", message: `${target?.name ?? "User"} has been removed.` });
+        } catch {
+            setToast({ type: "error", title: "Delete failed", message: "Unable to delete user. Check backend connection." });
+        }
     }
 
     return (
@@ -236,8 +245,19 @@ export default function AccessControlPage() {
                             }
                         />
 
-                        {backendStatus && (
-                            <div className="admin-inline-alert">{backendStatus}</div>
+                        <StatusToast toast={toast} onDismiss={dismissToast} />
+
+                        {confirmDeleteId !== null && (
+                            <div className="confirm-overlay">
+                                <div className="confirm-modal">
+                                    <h3>Delete user?</h3>
+                                    <p>Are you sure you want to delete <strong>{users.find((u) => u.id === confirmDeleteId)?.name ?? "this user"}</strong>? This action cannot be undone.</p>
+                                    <div className="confirm-modal-actions">
+                                        <button className="admin-secondary-btn" type="button" onClick={() => setConfirmDeleteId(null)}>Cancel</button>
+                                        <button className="admin-primary-btn" type="button" style={{ background: "#f87171", borderColor: "#f87171" }} onClick={() => void handleDeleteUser(confirmDeleteId)}>Delete</button>
+                                    </div>
+                                </div>
+                            </div>
                         )}
 
                         <div className="admin-summary-grid">
@@ -394,6 +414,17 @@ export default function AccessControlPage() {
                                                                         onClick={() => toggleUserSuspension(row.id)}
                                                                     >
                                                                         {row.status === "Suspended" ? <Check size={15} /> : <Pause size={15} />}
+                                                                    </button>
+
+                                                                    <button
+                                                                        type="button"
+                                                                        className="admin-icon-btn admin-icon-btn-danger"
+                                                                        title="Delete user"
+                                                                        aria-label="Delete user"
+                                                                        disabled={isSuperAdmin}
+                                                                        onClick={() => setConfirmDeleteId(row.id)}
+                                                                    >
+                                                                        <Trash2 size={15} />
                                                                     </button>
                                                                 </div>
                                                             </td>

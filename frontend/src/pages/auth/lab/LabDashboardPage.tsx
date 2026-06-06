@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Bell, CloudRain, Droplets, ThermometerSun, Wind } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Bell, BrainCircuit, CheckCircle2, CloudRain, Droplets, ExternalLink, RefreshCw, ThermometerSun, Wind } from "lucide-react";
 import "../../../styles/dashboard.css";
 import Sidebar from "../../../components/layout/Sidebar";
 import ProfileMenu from "../../../components/layout/ProfileMenu";
@@ -19,6 +20,18 @@ import {
     getAnomalySummary,
     type BackendAnomaly,
 } from "../../../services/anomalyApi";
+import {
+    getNotifications,
+    getUnreadNotificationCount,
+    markAllNotificationsRead,
+    markNotificationRead,
+    type NotificationAlert,
+} from "../../../services/notificationApi";
+import {
+    getWaterAdvisor,
+    recordWaterAdvisorAction,
+    type AiAdvisorResponse,
+} from "../../../services/aiApi";
 import {
     getCurrentWeather,
     getDailyForecastSeries,
@@ -50,15 +63,6 @@ type AnomalyItem = {
     time: string;
 };
 
-type NotificationItem = {
-    id: number;
-    title: string;
-    message: string;
-    time: string;
-    severity: "low" | "medium" | "high";
-};
-
-const notifications: NotificationItem[] = [];
 const TELEMETRY_POLL_MS = 5000;
 
 function formatDateLabel(dateStr: string | null | undefined): string {
@@ -70,7 +74,7 @@ function formatDateLabel(dateStr: string | null | undefined): string {
     }
 }
 
-function getSeverityClass(severity: "low" | "medium" | "high") {
+function getSeverityClass(severity: string | null | undefined) {
     switch (severity) {
         case "high": return "severity-high";
         case "medium": return "severity-medium";
@@ -233,7 +237,95 @@ function ForecastList({ data }: { data: Array<{ day: string; storage: number | n
     );
 }
 
+function AiWaterAdvisorCard({
+    advisor,
+    loading,
+    actionLoading,
+    actionMessage,
+    onRefresh,
+    onAction,
+}: {
+    advisor: AiAdvisorResponse | null;
+    loading: boolean;
+    actionLoading: string;
+    actionMessage: string;
+    onRefresh: () => void;
+    onAction: (action: string) => void;
+}) {
+    return (
+        <section className="lab-card ai-advisor-card">
+            <div className="section-header ai-advisor-header">
+                <div>
+                    <h2><BrainCircuit size={18} /> AI Water Advisor</h2>
+                    <p>{advisor ? `${advisor.source.toUpperCase()} · ${advisor.createdAt}` : "Evidence-based tank recommendation"}</p>
+                </div>
+                <div className="ai-advisor-header-actions">
+                    {advisor && <span className={`severity-badge ${getSeverityClass(advisor.severity)}`}>{advisor.severity}</span>}
+                    <button type="button" className="ai-advisor-icon-btn" onClick={onRefresh} disabled={loading} title="Refresh advisor">
+                        <RefreshCw size={16} />
+                    </button>
+                </div>
+            </div>
+
+            {loading && !advisor ? (
+                <div className="empty-state compact">
+                    <strong>Loading advisor</strong>
+                    <span>Collecting telemetry, forecast, anomaly, YOLO, and calibration evidence.</span>
+                </div>
+            ) : advisor ? (
+                <div className="ai-advisor-content">
+                    <div className="ai-advisor-summary">
+                        <h3>{advisor.title}</h3>
+                        <p>{advisor.summary}</p>
+                    </div>
+
+                    <div className="ai-evidence-grid">
+                        {advisor.evidence.map((item) => (
+                            <div key={item.label} className={`ai-evidence-item ai-evidence-${item.status}`}>
+                                <span>{item.label}</span>
+                                <strong>{item.value}</strong>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="ai-advisor-actions-list">
+                        {advisor.recommendedActions.slice(0, 5).map((action) => (
+                            <div key={action} className="ai-advisor-action-row">
+                                <CheckCircle2 size={15} />
+                                <span>{action}</span>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="ai-human-action-row">
+                        {advisor.humanDecisionOptions.map((action) => (
+                            <button
+                                key={action}
+                                type="button"
+                                className="ai-human-action-btn"
+                                disabled={actionLoading !== ""}
+                                onClick={() => onAction(action)}
+                            >
+                                {actionLoading === action ? <RefreshCw size={14} /> : <CheckCircle2 size={14} />}
+                                <span>{action}</span>
+                            </button>
+                        ))}
+                    </div>
+
+                    {actionMessage && <div className="ai-advisor-feedback">{actionMessage}</div>}
+                </div>
+            ) : (
+                <div className="empty-state compact">
+                    <strong>Advisor unavailable</strong>
+                    <span>Rule-based fallback will appear when the backend responds.</span>
+                </div>
+            )}
+        </section>
+    );
+}
+
 export default function LabDashboardPage() {
+    const navigate = useNavigate();
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [notificationOpen, setNotificationOpen] = useState(false);
 
@@ -255,10 +347,92 @@ export default function LabDashboardPage() {
     const [weather, setWeather] = useState<WeatherRecord | null>(null);
     const [weatherError, setWeatherError] = useState("");
     const [anomalies, setAnomalies] = useState<AnomalyItem[]>([]);
+    const [notifications, setNotifications] = useState<NotificationAlert[]>([]);
+    const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+    const [notificationMarkingAll, setNotificationMarkingAll] = useState(false);
+    const [notificationError, setNotificationError] = useState("");
+    const [advisor, setAdvisor] = useState<AiAdvisorResponse | null>(null);
+    const [advisorLoading, setAdvisorLoading] = useState(false);
+    const [advisorActionLoading, setAdvisorActionLoading] = useState("");
+    const [advisorActionMessage, setAdvisorActionMessage] = useState("");
     const [rainfallSeriesData, setRainfallSeriesData] = useState<Array<{ day: string; rain: number | null }>>([]);
     const [storageForecastRows, setStorageForecastRows] = useState<Array<{ day: string; storage: number | null }>>([]);
 
     const now = formatCurrentDateTime();
+
+    async function loadNotifications() {
+        try {
+            const [alertRows, count] = await Promise.all([
+                getNotifications(),
+                getUnreadNotificationCount(),
+            ]);
+            setNotifications(alertRows);
+            setUnreadNotificationCount(count.count ?? 0);
+            setNotificationError("");
+        } catch {
+            setNotifications([]);
+            setUnreadNotificationCount(0);
+        }
+    }
+
+    async function loadAdvisor(showLoading = true) {
+        if (showLoading) setAdvisorLoading(true);
+        setAdvisorActionMessage("");
+        try {
+            const response = await getWaterAdvisor();
+            setAdvisor(response);
+        } catch {
+            setAdvisor(null);
+        } finally {
+            if (showLoading) setAdvisorLoading(false);
+        }
+    }
+
+    async function handleNotificationClick(item: NotificationAlert) {
+        if (item.id) {
+            try {
+                await markNotificationRead(item.id);
+                await loadNotifications();
+            } catch {
+                // Keep dropdown usable even if the read marker fails.
+            }
+        }
+        setNotificationOpen(false);
+        navigate(item.linkPath || "/lab/anomalies");
+    }
+
+    async function handleReadAllNotifications() {
+        if (unreadNotificationCount === 0 || notificationMarkingAll) return;
+        setNotificationMarkingAll(true);
+        setNotificationError("");
+        try {
+            const result = await markAllNotificationsRead();
+            const now = new Date().toISOString();
+            setNotifications((prev) => prev.map((item) => ({ ...item, readAt: item.readAt || now })));
+            setUnreadNotificationCount(result.count ?? 0);
+        } catch (error) {
+            setNotificationError(error instanceof Error ? error.message : "Notifications could not be marked read.");
+        } finally {
+            setNotificationMarkingAll(false);
+        }
+    }
+
+    async function handleAdvisorAction(action: string) {
+        setAdvisorActionLoading(action);
+        setAdvisorActionMessage("");
+        try {
+            await recordWaterAdvisorAction({
+                action,
+                user: localStorage.getItem("rc_display_name") || "lab",
+            });
+            setAdvisorActionMessage(`${action} recorded.`);
+            await loadAdvisor(false);
+        } catch {
+            setAdvisorActionMessage("Action could not be recorded.");
+        } finally {
+            setAdvisorActionLoading("");
+        }
+    }
 
     useEffect(() => {
         let active = true;
@@ -405,13 +579,21 @@ export default function LabDashboardPage() {
         void loadWeatherAndRainfall();
         void loadAnomalySummary();
         void loadStorageForecast();
+        void loadNotifications();
+        void loadAdvisor(true);
+        const handleNotificationsUpdated = () => {
+            void loadNotifications();
+        };
+        globalThis.window?.addEventListener("raincatcher:notifications-updated", handleNotificationsUpdated);
         const telemetryIntervalId = globalThis.setInterval(() => {
             void loadTelemetry(false);
             void loadAnomalySummary();
+            void loadNotifications();
         }, TELEMETRY_POLL_MS);
 
         return () => {
             active = false;
+            globalThis.window?.removeEventListener("raincatcher:notifications-updated", handleNotificationsUpdated);
             globalThis.clearInterval(telemetryIntervalId);
         };
     }, []);
@@ -499,41 +681,71 @@ export default function LabDashboardPage() {
                                 <div className="dashboard-actions">
                                     <div className="notification-wrapper">
                                         <button type="button" className="notification-btn"
-                                            onClick={() => setNotificationOpen((prev) => !prev)} aria-label="View anomaly alerts">
+                                            onClick={() => setNotificationOpen((prev) => !prev)} aria-label="View alerts">
                                             <Bell size={18} />
-                                            <span className="notification-dot">{notifications.length}</span>
+                                            {unreadNotificationCount > 0 && (
+                                                <span className="notification-dot">{unreadNotificationCount}</span>
+                                            )}
                                         </button>
 
                                         {notificationOpen && (
                                             <div className="notification-dropdown">
                                                 <div className="notification-header">
-                                                    <h3>Anomaly Alerts</h3>
-                                                    <span>{notifications.length} new</span>
+                                                    <div>
+                                                        <h3>Notifications</h3>
+                                                        <span>{unreadNotificationCount} unread</span>
+                                                    </div>
+                                                    {notifications.length > 0 && (
+                                                        <button
+                                                            type="button"
+                                                            className="notification-read-all"
+                                                            onClick={() => void handleReadAllNotifications()}
+                                                            disabled={unreadNotificationCount === 0 || notificationMarkingAll}
+                                                        >
+                                                            {notificationMarkingAll ? "Marking..." : "Mark all read"}
+                                                        </button>
+                                                    )}
                                                 </div>
+                                                {notificationError && (
+                                                    <div className="notification-error" role="alert">
+                                                        {notificationError}
+                                                    </div>
+                                                )}
 
                                                 {notifications.length === 0 ? (
                                                     <div className="empty-state compact">
-                                                        <strong>No active alerts</strong>
-                                                        <span>Anomaly notifications will appear after telemetry rules run.</span>
+                                                        <strong>No notifications</strong>
+                                                        <span>New sensor, camera, and anomaly alerts will appear here.</span>
                                                     </div>
                                                 ) : (
                                                     <div className="notification-list">
-                                                        {notifications.map((item) => (
-                                                            <div key={item.id} className="notification-item">
+                                                        {notifications.slice(0, 8).map((item) => (
+                                                            <button
+                                                                key={item.id}
+                                                                type="button"
+                                                                className={`notification-item ${item.readAt ? "read" : "unread"}`}
+                                                                onClick={() => void handleNotificationClick(item)}
+                                                            >
                                                                 <div className={`notification-alert-dot ${getSeverityClass(item.severity)}`} />
                                                                 <div>
                                                                     <div className="notification-item-top">
                                                                         <strong>{item.title}</strong>
-                                                                        <span>{item.time}</span>
+                                                                        <span className={`severity-badge ${getSeverityClass(item.severity)}`}>{item.severity}</span>
                                                                     </div>
                                                                     <p>{item.message}</p>
+                                                                    <span className="notification-time">
+                                                                        {item.createdAt ?? "--"} <ExternalLink size={11} />
+                                                                    </span>
                                                                 </div>
-                                                            </div>
+                                                            </button>
                                                         ))}
                                                     </div>
                                                 )}
 
-                                                <button type="button" className="notification-view-all">View all anomalies</button>
+                                                <button type="button" className="notification-view-all"
+                                                    onClick={() => { setNotificationOpen(false); navigate("/lab/anomalies"); }}>
+                                                    View all anomalies
+                                                </button>
                                             </div>
                                         )}
                                     </div>
@@ -569,6 +781,15 @@ export default function LabDashboardPage() {
                             <div className="stats-grid">
                                 {stats.map((item) => <StatCard key={item.title} {...item} />)}
                             </div>
+
+                            <AiWaterAdvisorCard
+                                advisor={advisor}
+                                loading={advisorLoading}
+                                actionLoading={advisorActionLoading}
+                                actionMessage={advisorActionMessage}
+                                onRefresh={() => void loadAdvisor(true)}
+                                onAction={(action) => void handleAdvisorAction(action)}
+                            />
 
                             <div className="dashboard-grid two-columns">
                                 <section className="lab-card">

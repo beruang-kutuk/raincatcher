@@ -1,6 +1,7 @@
 package com.raincatcher.backend.anomaly;
 
 import com.raincatcher.backend.iot.IotTelemetryEntity;
+import com.raincatcher.backend.notification.NotificationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,15 +19,18 @@ public class AnomalyService {
     private final AnomalyRepository repository;
     private final AnomalyEventRepository eventRepository;
     private final AnomalyThresholdService thresholdService;
+    private final NotificationService notificationService;
 
     public AnomalyService(
             AnomalyRepository repository,
             AnomalyEventRepository eventRepository,
-            AnomalyThresholdService thresholdService
+            AnomalyThresholdService thresholdService,
+            NotificationService notificationService
     ) {
         this.repository = repository;
         this.eventRepository = eventRepository;
         this.thresholdService = thresholdService;
+        this.notificationService = notificationService;
     }
 
     public List<AnomalyEntity> getAnomalies() {
@@ -53,41 +57,47 @@ public class AnomalyService {
         double tempHigh = thresholdService.getThreshold("water_temperature_high", 35.0, "C", "High water temperature threshold.");
 
         if (telemetry.getPh() != null && telemetry.getPh() < phLow) {
-            upsertTelemetryAnomaly(telemetry, "pH Sensor", "ph_sensor", "Low pH detected", "high",
+            AnomalyEntity anomaly = upsertTelemetryAnomaly(telemetry, "pH Sensor", "ph_sensor", "Low pH detected", "high",
                     String.format("pH is %.2f, below %.2f.", telemetry.getPh(), phLow),
                     String.format("%.2f pH", telemetry.getPh()),
                     "Check water source and pH balance before use.");
+            notificationService.createOrUpdateFromAnomaly(anomaly);
         } else if (telemetry.getPh() != null && telemetry.getPh() > phHigh) {
-            upsertTelemetryAnomaly(telemetry, "pH Sensor", "ph_sensor", "High pH detected", "medium",
+            AnomalyEntity anomaly = upsertTelemetryAnomaly(telemetry, "pH Sensor", "ph_sensor", "High pH detected", "medium",
                     String.format("pH is %.2f, above %.2f.", telemetry.getPh(), phHigh),
                     String.format("%.2f pH", telemetry.getPh()),
                     "Inspect water source. pH is elevated.");
+            notificationService.createOrUpdateFromAnomaly(anomaly);
         }
 
         if (telemetry.getTurbidity() != null && telemetry.getTurbidity() > turbidityHigh) {
-            upsertTelemetryAnomaly(telemetry, "Turbidity Sensor", "turbidity_sensor", "High turbidity detected", "medium",
+            AnomalyEntity anomaly = upsertTelemetryAnomaly(telemetry, "Turbidity Sensor", "turbidity_sensor", "High turbidity detected", "medium",
                     String.format("Turbidity is %.1f NTU, above %.1f NTU.", telemetry.getTurbidity(), turbidityHigh),
                     String.format("%.1f NTU", telemetry.getTurbidity()),
                     "Water clarity is reduced. Inspect tank for sediment.");
+            notificationService.createOrUpdateFromAnomaly(anomaly);
         }
 
         if (telemetry.getWaterLevelPercent() != null && telemetry.getWaterLevelPercent() < waterLevelLow) {
-            upsertTelemetryAnomaly(telemetry, "Ultrasonic Sensor", "ultrasonic_echo", "Low water level", "high",
+            AnomalyEntity anomaly = upsertTelemetryAnomaly(telemetry, "Ultrasonic Sensor", "ultrasonic_echo", "Low water level", "high",
                     String.format("Water level is %.1f%%, below %.1f%%.", telemetry.getWaterLevelPercent(), waterLevelLow),
                     String.format("%.1f%%", telemetry.getWaterLevelPercent()),
                     "Water level is low. Check supply and usage.");
+            notificationService.createOrUpdateFromAnomaly(anomaly);
         }
 
         if (telemetry.getWaterTemperature() != null && telemetry.getWaterTemperature() < tempLow) {
-            upsertTelemetryAnomaly(telemetry, "Temperature Sensor", "water_temperature_ds18b20", "Low water temperature", "medium",
+            AnomalyEntity anomaly = upsertTelemetryAnomaly(telemetry, "Temperature Sensor", "water_temperature_ds18b20", "Low water temperature", "medium",
                     String.format("Water temperature is %.1f C, below %.1f C.", telemetry.getWaterTemperature(), tempLow),
                     String.format("%.1f C", telemetry.getWaterTemperature()),
                     "Water temperature is low. Check sensor placement and weather effects.");
+            notificationService.createOrUpdateFromAnomaly(anomaly);
         } else if (telemetry.getWaterTemperature() != null && telemetry.getWaterTemperature() > tempHigh) {
-            upsertTelemetryAnomaly(telemetry, "Temperature Sensor", "water_temperature_ds18b20", "High water temperature", "medium",
+            AnomalyEntity anomaly = upsertTelemetryAnomaly(telemetry, "Temperature Sensor", "water_temperature_ds18b20", "High water temperature", "medium",
                     String.format("Water temperature is %.1f C, above %.1f C.", telemetry.getWaterTemperature(), tempHigh),
                     String.format("%.1f C", telemetry.getWaterTemperature()),
                     "Water temperature is elevated. Monitor water quality.");
+            notificationService.createOrUpdateFromAnomaly(anomaly);
         }
 
         return repository.findTop100ByStatusNotOrderByCreatedAtDesc(STATUS_RESOLVED);
@@ -103,6 +113,7 @@ public class AnomalyService {
         anomaly.setUpdatedAt(now);
         AnomalyEntity saved = repository.save(anomaly);
         createEvent(saved, "manual_created", null, saved.getValueText(), "Manual anomaly created.");
+        notificationService.createOrUpdateFromAnomaly(saved);
         return saved;
     }
 
@@ -124,10 +135,11 @@ public class AnomalyService {
         existing.setUpdatedAt(LocalDateTime.now());
         AnomalyEntity saved = repository.save(existing);
         createEvent(saved, "updated", saved.getTelemetryId(), saved.getValueText(), "Anomaly updated.");
+        notificationService.createOrUpdateFromAnomaly(saved);
         return saved;
     }
 
-    private void upsertTelemetryAnomaly(
+    private AnomalyEntity upsertTelemetryAnomaly(
             IotTelemetryEntity telemetry,
             String source,
             String sourceTag,
@@ -160,6 +172,7 @@ public class AnomalyService {
         anomaly.setUpdatedAt(now);
         AnomalyEntity saved = repository.save(anomaly);
         createEvent(saved, "telemetry_threshold", telemetry.getId(), valueText, description);
+        return saved;
     }
 
     private void createEvent(AnomalyEntity anomaly, String eventType, Long telemetryId, String valueText, String message) {

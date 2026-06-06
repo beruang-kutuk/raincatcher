@@ -17,9 +17,11 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService service;
+    private final PasswordResetService passwordResetService;
 
-    public AuthController(AuthService service) {
+    public AuthController(AuthService service, PasswordResetService passwordResetService) {
         this.service = service;
+        this.passwordResetService = passwordResetService;
     }
 
     @PostMapping("/login")
@@ -37,10 +39,53 @@ public class AuthController {
         }
     }
 
+    @PostMapping("/google")
+    public ResponseEntity<?> googleLogin(@RequestBody(required = false) GoogleLoginRequest request) {
+        try {
+            String credential = request == null ? "" : request.credential();
+            return ResponseEntity.ok(service.loginWithGoogle(credential));
+        } catch (AuthService.GoogleLoginDisabledException ex) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of(
+                    "status", "error",
+                    "message", ex.getMessage()
+            ));
+        } catch (AuthService.GoogleLoginRejectedException ex) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                    "status", "error",
+                    "message", ex.getMessage()
+            ));
+        } catch (Exception ex) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                    "status", "error",
+                    "message", "Google login failed"
+            ));
+        }
+    }
+
     @PostMapping("/logout")
     public ResponseEntity<Map<String, String>> logout(@RequestHeader(value = "Authorization", required = false) String authorization) {
         service.logout(tokenFromHeader(authorization));
         return ResponseEntity.ok(Map.of("status", "ok"));
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Map<String, String>> forgotPassword(@RequestBody(required = false) ForgotPasswordRequest request) {
+        String email = request == null ? "" : request.email();
+        return ResponseEntity.ok(passwordResetService.requestReset(email));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Map<String, String>> resetPassword(@RequestBody(required = false) ResetPasswordRequest request) {
+        try {
+            String token = request == null ? "" : request.token();
+            String newPassword = request == null ? "" : request.newPassword();
+            return ResponseEntity.ok(passwordResetService.resetPassword(token, newPassword));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", ex.getMessage()
+            ));
+        }
     }
 
     @GetMapping("/me")

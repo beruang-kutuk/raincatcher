@@ -35,9 +35,34 @@ type AdminMetric = {
 function getAdminStatusClass(status: AdminStatus | string) {
     if (status === "critical") return "admin-status-critical";
     if (status === "warning") return "admin-status-warning";
-    if (status === "not_implemented" || status === "no_data" || status === "offline") return "admin-status-critical";
-    if (status === "pending" || status === "stale" || status === "no_records") return "admin-status-warning";
+    if (status === "not_implemented" || status === "no_data" || status === "offline" || status === "Offline") return "admin-status-critical";
+    if (status === "pending" || status === "stale" || status === "slow_response" || status === "not_configured" || status === "no_records" || status === "Pending" || status === "Stale") return "admin-status-warning";
     return "admin-status-normal";
+}
+
+function friendlyStatus(raw: string | undefined | null): string {
+    if (!raw) return "--";
+    const map: Record<string, string> = {
+        has_completed_runs: "Completed",
+        no_completed_runs: "No Run",
+        has_records: "Active",
+        configured_no_records: "Configured",
+        no_records: "No Records",
+        not_implemented: "Not Configured",
+        not_configured: "Not Configured",
+        online: "Online",
+        offline: "Offline",
+        stale: "Stale",
+        no_data: "No Data",
+        connected: "Connected",
+        ready: "Ready",
+        slow: "Slow Response",
+        slow_response: "Slow Response",
+        maintenance: "Maintenance",
+        pending: "Pending",
+        warning: "Warning",
+    };
+    return map[raw.toLowerCase()] ?? raw.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function AdminMetricCard({ label, value, meta, status, icon }: AdminMetric) {
@@ -92,21 +117,21 @@ export default function AdminDashboardPage() {
         },
         {
             label: "Backend API",
-            value: health?.backendApi ?? "Checking",
+            value: friendlyStatus(health?.backendApi ?? "pending"),
             meta: "Spring Boot backend admin endpoint status",
             status: health?.backendApi === "online" ? "normal" : "warning",
             icon: <SlidersHorizontal size={22} />,
         },
         {
             label: "Forecast API",
-            value: String(health?.forecastApi ?? "Checking"),
+            value: friendlyStatus(health?.forecastApi ?? "pending"),
             meta: "Forecast runs and calibration-ready storage output",
             status: health?.forecastApi === "has_completed_runs" ? "normal" : "warning",
             icon: <Gauge size={22} />,
         },
         {
             label: "ESP32 Telemetry",
-            value: String(health?.esp32Telemetry ?? "Checking"),
+            value: friendlyStatus(health?.esp32Telemetry ?? "pending"),
             meta: health?.sensorLastSeenAt ? `Last seen ${health.sensorLastSeenAt}` : "Waiting for latest telemetry",
             status: health?.esp32Telemetry === "online" ? "normal" : "warning",
             icon: <AlertTriangle size={22} />,
@@ -228,7 +253,7 @@ export default function AdminDashboardPage() {
                                             {engine.serviceKey.includes("camera") ? <Camera size={18} /> : <Activity size={18} />}
                                         </div>
                                         <span className={`admin-status-pill ${getAdminStatusClass(engine.status)}`}>
-                                            {engine.status}
+                                            {friendlyStatus(engine.status)}
                                         </span>
                                         <p>{engine.detail}</p>
                                         <p><strong>Checked:</strong> {engine.checkedAt}</p>

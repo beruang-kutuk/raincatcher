@@ -1,0 +1,143 @@
+/* ===== Raincatcher Aurora Background — dark animated aurora ===== */
+
+.aurora-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+    background:
+        radial-gradient(circle at 22% 18%, rgba(215, 186, 131, 0.16), transparent 36%),
+        linear-gradient(135deg, #0f1020 0%, #1a1423 45%, #2a1d16 100%);
+}
+
+/* ── Floating radial blobs ──────────────────────────────────────── */
+
+.aurora-layer {
+    position: absolute;
+    width: 70vw;
+    height: 70vw;
+    min-width: 520px;
+    min-height: 520px;
+    border-radius: 999px;
+    filter: blur(72px);
+    opacity: 0.6;
+    mix-blend-mode: screen;
+    will-change: transform, opacity;
+}
+
+.aurora-layer-1 {
+    top: -25%;
+    left: -15%;
+    background:
+        radial-gradient(circle, rgba(215, 186, 131, 0.60), transparent 58%),
+        radial-gradient(circle at 65% 40%, rgba(139, 92, 246, 0.34), transparent 55%);
+    animation: auroraFloatOne 22s ease-in-out infinite alternate;
+}
+
+.aurora-layer-2 {
+    right: -20%;
+    top: 10%;
+    background:
+        radial-gradient(circle, rgba(174, 128, 72, 0.50), transparent 60%),
+        radial-gradient(circle at 30% 70%, rgba(109, 76, 255, 0.34), transparent 55%);
+    animation: auroraFloatTwo 28s ease-in-out infinite alternate;
+}
+
+.aurora-layer-3 {
+    left: 18%;
+    bottom: -30%;
+    background:
+        radial-gradient(circle, rgba(255, 226, 170, 0.32), transparent 55%),
+        radial-gradient(circle at 60% 50%, rgba(215, 186, 131, 0.34), transparent 60%);
+    animation: auroraFloatThree 34s ease-in-out infinite alternate;
+}
+
+/* ── Horizontal sweep waves ─────────────────────────────────────── */
+
+.aurora-wave {
+    position: absolute;
+    left: -10%;
+    width: 120%;
+    height: 42%;
+    border-radius: 50%;
+    filter: blur(46px);
+    opacity: 0.34;
+    background:
+        linear-gradient(
+            90deg,
+            transparent 0%,
+            rgba(215, 186, 131, 0.20) 20%,
+            rgba(139, 92, 246, 0.24) 48%,
+            rgba(215, 186, 131, 0.20) 72%,
+            transparent 100%
+        );
+    background-size: 240% 100%;
+    will-change: transform, background-position;
+}
+
+.aurora-wave-1 {
+    top: 18%;
+    transform: rotate(-8deg);
+    animation: auroraWaveMove 18s ease-in-out infinite alternate;
+}
+
+.aurora-wave-2 {
+    bottom: 10%;
+    transform: rotate(10deg);
+    animation: auroraWaveMoveReverse 24s ease-in-out infinite alternate;
+}
+
+/* ── Subtle dot-grain noise ─────────────────────────────────────── */
+
+.aurora-noise {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    opacity: 0.06;
+    background-image: radial-gradient(rgba(255, 255, 255, 0.20) 1px, transparent 1px);
+    background-size: 18px 18px;
+    mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
+}
+
+/* ── Keyframes ──────────────────────────────────────────────────── */
+
+@keyframes auroraFloatOne {
+    0%   { transform: translate3d(-4%,  -2%, 0) rotate(0deg)   scale(1);    opacity: 0.50; }
+    50%  { transform: translate3d(18%,  12%, 0) rotate(16deg)  scale(1.12); opacity: 0.70; }
+    100% { transform: translate3d(8%,   24%, 0) rotate(-10deg) scale(0.96); opacity: 0.55; }
+}
+
+@keyframes auroraFloatTwo {
+    0%   { transform: translate3d(8%,  -8%, 0) rotate(0deg)   scale(1.05); opacity: 0.46; }
+    50%  { transform: translate3d(-18%, 10%, 0) rotate(-18deg) scale(1.18); opacity: 0.66; }
+    100% { transform: translate3d(-8%,  22%, 0) rotate(8deg)   scale(0.98); opacity: 0.52; }
+}
+
+@keyframes auroraFloatThree {
+    0%   { transform: translate3d(-10%,  10%, 0) rotate(0deg)   scale(1);    opacity: 0.32; }
+    50%  { transform: translate3d(16%,  -12%, 0) rotate(10deg)  scale(1.15); opacity: 0.52; }
+    100% { transform: translate3d(4%,   -24%, 0) rotate(-14deg) scale(1.02); opacity: 0.42; }
+}
+
+@keyframes auroraWaveMove {
+    0%   { background-position: 0%    50%; transform: translate3d(-8%,  0,   0) rotate(-8deg)  scaleY(1);    }
+    50%  { background-position: 100%  50%; transform: translate3d(6%,   8%,  0) rotate(-3deg)  scaleY(1.18); }
+    100% { background-position: 180%  50%; transform: translate3d(14%, -4%,  0) rotate(-10deg) scaleY(0.92); }
+}
+
+@keyframes auroraWaveMoveReverse {
+    0%   { background-position: 100% 50%; transform: translate3d(8%,    0,  0) rotate(10deg) scaleY(1);    }
+    50%  { background-position: 0%   50%; transform: translate3d(-8%,  -6%, 0) rotate(4deg)  scaleY(1.12); }
+    100% { background-position: -80% 50%; transform: translate3d(-14%,  4%, 0) rotate(12deg) scaleY(0.95); }
+}
+
+/* ── Motion safety ──────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+    .aurora-layer,
+    .aurora-wave {
+        animation: none !important;
+    }
+}
