@@ -1,19 +1,28 @@
 :root {
-    --bg: #f4f6fb;
+    --bg: #f4f8ff;
     --text: #0b1220;
-    --muted: #6b7280;
-    --border: rgba(15, 23, 42, 0.10);
-    --shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
-    --purple: #b08a45;
-    --purple2: #d7ba83;
+    --muted: #64748b;
+    --border: rgba(30, 41, 59, 0.12);
+    --shadow: 0 12px 30px rgba(15, 23, 42, 0.07);
+
+    /* Legacy variable names kept for compatibility — now blue-themed */
+    --purple: #4f46e5;
+    --purple2: #8ea7ff;
+
+    --primary: #4f46e5;
+    --primary-2: #8ea7ff;
+    --water: #38bdf8;
+    --water-soft: #e0f2fe;
+    --navy: #1e1b4b;
+
     --sidebar-expanded: 250px;
     --sidebar-collapsed: 88px;
 
     --card: #ffffff;
-    --card-soft: #fafbff;
+    --card-soft: #f8fbff;
     --input: #ffffff;
     --dropdown: #ffffff;
-    --progress-bg: #e5e7eb;
+    --progress-bg: #dbeafe;
 
     --green-soft: #dcfce7;
     --green-text: #166534;
@@ -21,6 +30,14 @@
     --yellow-text: #92400e;
     --red-soft: #fee2e2;
     --red-text: #991b1b;
+
+    --status-good: #22c55e;
+    --status-good-soft: #dcfce7;
+    --status-warning: #f59e0b;
+    --status-warning-soft: #fef3c7;
+    --status-danger: #ef4444;
+    --status-danger-soft: #fee2e2;
+    --status-neutral: #8ea7ff;
 }
 
 body.dark-mode {
@@ -30,8 +47,13 @@ body.dark-mode {
     --border: rgba(255, 255, 255, 0.11);
     --shadow: 0 12px 30px rgba(0, 0, 0, 0.24);
 
-    --purple: #b08a45;
-    --purple2: #d7ba83;
+    --purple: #6366f1;
+    --purple2: #a5b4fc;
+    --primary: #6366f1;
+    --primary-2: #a5b4fc;
+    --water: #38bdf8;
+    --water-soft: rgba(56, 189, 248, 0.15);
+    --navy: #1e1b4b;
     --card: #1b2430;
     --card-soft: #151f2b;
     --input: #1b2430;
@@ -145,11 +167,10 @@ body {
 }
 
 .sidebar-logo-image {
-    width: 32px;
-    height: 32px;
+    width: 42px;
+    height: 42px;
     object-fit: contain;
     flex-shrink: 0;
-    border-radius: 6px;
 }
 
 .sidebar-brand h2 {
@@ -512,6 +533,33 @@ body {
     margin-top: 6px;
 }
 
+/* MINI CHART LEGEND */
+.mini-chart-legend {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+}
+
+.mini-chart-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 600;
+}
+
+.mini-chart-legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
 /* Dark mode mini chart */
 body.dark-mode .mini-chart-grid-line {
     stroke: rgba(255, 255, 255, 0.10);
@@ -544,7 +592,9 @@ body.dark-mode .mini-chart-axis-line {
 
 .forecast-progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--purple), var(--purple2));
+    background: var(--status-neutral);
+    border-radius: 999px;
+    transition: width 0.4s ease, background 0.3s ease;
 }
 
 /* ANOMALIES */

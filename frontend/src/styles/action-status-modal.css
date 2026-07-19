@@ -13,7 +13,7 @@
     width: min(360px, 100%);
     min-height: 220px;
     border-radius: 18px;
-    border: 1px solid rgba(120, 86, 38, 0.20);
+    border: 1px solid rgba(79, 70, 229, 0.20);
     background: color-mix(in srgb, var(--card, #ffffff) 94%, white);
     color: var(--text, #0f172a);
     box-shadow: 0 32px 90px rgba(15, 23, 42, 0.28);
@@ -54,8 +54,8 @@
 }
 
 .action-status-card.loading .action-status-icon {
-    color: var(--purple, #b08a45);
-    background: color-mix(in srgb, var(--purple, #b08a45) 12%, transparent);
+    color: var(--purple, #4f46e5);
+    background: color-mix(in srgb, var(--purple, #4f46e5) 12%, transparent);
 }
 
 .action-status-card.success .action-status-icon {

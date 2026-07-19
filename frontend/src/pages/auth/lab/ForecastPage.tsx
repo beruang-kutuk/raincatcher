@@ -33,6 +33,7 @@ import { getEmptyStorageProjection } from "../../../services/forecastPlaceholder
 import { RAINWATER_TANK_NAME } from "../../../services/sensorInputs";
 import { formatCurrentDate, formatCurrentDateTime } from "../../../services/time";
 import { getAdminForecastSettings } from "../../../services/adminForecastSettingsApi";
+import { getStatusColor, getWaterLevelStatus, getRainfallStatusColor, RAINFALL_LEGEND } from "../../../utils/statusColors";
 
 const DEFAULT_TANK_CAPACITY_LITRES = 3;
 const DEFAULT_CATCHMENT_AREA_M2 = 75;
@@ -121,9 +122,35 @@ function RainfallForecastChart({ values, labels }: { values: number[]; labels: s
                 })}
                 <polygon points={areaPoints} className="forecast-area-fill" />
                 <polyline points={linePoints} className="forecast-line" />
-                {points.map((point, index) => (
-                    <circle key={index} cx={point.x} cy={point.y} r="4.5" className="forecast-point" />
-                ))}
+                {points.map((point, index) => {
+                    const val = values[index];
+                    const color = getRainfallStatusColor(val);
+                    return (
+                        <g key={index}>
+                            <circle
+                                cx={point.x}
+                                cy={point.y}
+                                r="5.5"
+                                fill={color}
+                                stroke="#ffffff"
+                                strokeWidth="2"
+                            />
+                            {val > 0 && (
+                                <text
+                                    x={point.x}
+                                    y={point.y - 10}
+                                    textAnchor="middle"
+                                    className="forecast-axis-text"
+                                    fill={color}
+                                    fontSize="10"
+                                    fontWeight="700"
+                                >
+                                    {val.toFixed(1)}
+                                </text>
+                            )}
+                        </g>
+                    );
+                })}
             </svg>
             <div className="forecast-chart-labels">
                 {labels.map((label) => (
@@ -147,7 +174,11 @@ function AccuracyMiniChart({ records }: { records: CalibrationRecord[] }) {
     return (
         <div className="forecast-mini-chart" aria-label="Calibration accuracy over time">
             {values.map((value, index) => (
-                <span key={`${value}-${index}`} style={{ height: `${Math.max(8, value)}%` }} title={`${value.toFixed(1)}%`} />
+                <span
+                    key={`${value}-${index}`}
+                    style={{ height: `${Math.max(8, value)}%`, background: getStatusColor(value) }}
+                    title={`${value.toFixed(1)}%`}
+                />
             ))}
         </div>
     );
@@ -312,12 +343,24 @@ export default function ForecastPage() {
         ?? forecastResult?.calibrationAccuracyPercent
         ?? (forecastResult ? Math.max(65, 100 - forecastResult.shortageDays * 8 - forecastResult.overflowDays * 6) : null);
 
+    const tankLevelStatus = telemetry
+        ? (getWaterLevelStatus(telemetry.waterLevelPercent) === "danger" ? "flagged" : getWaterLevelStatus(telemetry.waterLevelPercent) === "warning" ? "warning" : "normal")
+        : "warning";
+
+    const confidenceStatus = confidence == null
+        ? "warning"
+        : (getWaterLevelStatus(confidence) === "danger" ? "flagged" : getWaterLevelStatus(confidence) === "warning" ? "warning" : "normal");
+
+    const usableWaterStatus = telemetry
+        ? (getWaterLevelStatus(telemetry.waterLevelPercent) === "danger" ? "flagged" : getWaterLevelStatus(telemetry.waterLevelPercent) === "warning" ? "warning" : "normal")
+        : "warning";
+
     const forecastMetrics: ForecastMetric[] = [
         {
             label: "Current Tank Level",
             value: telemetry ? formatPercent(telemetry.waterLevelPercent) : "--",
             meta: telemetry ? "Latest ESP32 ultrasonic reading" : "Waiting for actual telemetry reading.",
-            status: telemetry ? "normal" : "warning",
+            status: tankLevelStatus,
         },
         {
             label: "Expected Rainfall",
@@ -329,13 +372,13 @@ export default function ForecastPage() {
             label: "Usable Water",
             value: usableWaterLitres != null ? `${usableWaterLitres.toFixed(2)} L` : "--",
             meta: "Estimated from current tank level and capacity",
-            status: telemetry ? "normal" : "warning",
+            status: usableWaterStatus,
         },
         {
             label: "Forecast Confidence",
             value: formatPercent(confidence),
             meta: calibrationSummary?.recommendation ?? "Improves after calibration history is available.",
-            status: confidence == null ? "warning" : confidence >= 85 ? "normal" : "warning",
+            status: confidenceStatus,
         },
     ];
 
@@ -447,10 +490,15 @@ export default function ForecastPage() {
                                             </button>
                                         </div>
                                         <div className="forecast-legend">
-                                            <div className="forecast-legend-item">
-                                                <span className="forecast-legend-dot forecast-legend-dot-line" />
-                                                <span>Predicted rainfall (mm)</span>
-                                            </div>
+                                            {RAINFALL_LEGEND.map((item) => (
+                                                <div key={item.label} className="forecast-legend-item">
+                                                    <span
+                                                        className="forecast-legend-dot"
+                                                        style={{ background: item.color }}
+                                                    />
+                                                    <span>{item.label}</span>
+                                                </div>
+                                            ))}
                                         </div>
                                         <RainfallForecastChart values={rainfallTrend} labels={rainfallLabels} />
                                         <div className="forecast-info-note">
@@ -467,39 +515,56 @@ export default function ForecastPage() {
                                         {forecastError && !forecastLoading && <p className="forecast-state-message error">{forecastError}</p>}
 
                                         <div className="forecast-storage-list">
-                                            {storageProjection.map((item) => (
-                                                <div key={`${item.day}-${item.date}`} className="forecast-storage-row">
-                                                    <div className="forecast-storage-day">{item.day}</div>
-                                                    <div className="forecast-storage-date">{item.date}</div>
-                                                    <div className="forecast-storage-progress">
-                                                        <div className="forecast-storage-progress-fill" style={{ width: `${item.value ?? 0}%` }} />
+                                            {storageProjection.map((item) => {
+                                                const pct = item.value ?? 0;
+                                                const color = getStatusColor(pct);
+                                                return (
+                                                    <div key={`${item.day}-${item.date}`} className="forecast-storage-row">
+                                                        <div className="forecast-storage-day">{item.day}</div>
+                                                        <div className="forecast-storage-date">{item.date}</div>
+                                                        <div className="forecast-storage-progress">
+                                                            <div
+                                                                className="forecast-storage-progress-fill"
+                                                                style={{ width: `${pct}%`, background: color }}
+                                                            />
+                                                        </div>
+                                                        <div className="forecast-storage-value" style={{ color }}>
+                                                            {item.value === null ? "--" : `${item.value.toFixed(1)}%`}
+                                                        </div>
                                                     </div>
-                                                    <div className="forecast-storage-value">{item.value === null ? "--" : `${item.value.toFixed(1)}%`}</div>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
 
                                         <div className="forecast-calibrated-strip">
                                             <div>
                                                 <span>Raw forecast</span>
-                                                <strong>{formatPercent(forecastResult?.rawForecastLevel ?? forecastResult?.finalLevelPercent)}</strong>
+                                                <strong style={{ color: forecastResult ? getStatusColor(forecastResult.rawForecastLevel ?? forecastResult.finalLevelPercent ?? 0) : undefined }}>
+                                                    {formatPercent(forecastResult?.rawForecastLevel ?? forecastResult?.finalLevelPercent)}
+                                                </strong>
                                             </div>
                                             <div>
                                                 <span>Calibrated forecast</span>
-                                                <strong>{formatPercent(forecastResult?.calibratedForecastLevel)}</strong>
+                                                <strong style={{ color: forecastResult?.calibratedForecastLevel != null ? getStatusColor(forecastResult.calibratedForecastLevel) : undefined }}>
+                                                    {formatPercent(forecastResult?.calibratedForecastLevel)}
+                                                </strong>
                                             </div>
                                             <div>
                                                 <span>Calibration status</span>
-                                                <strong>{forecastResult?.calibrationApplied ? "Applied" : "Pending"}</strong>
+                                                <strong style={{ color: forecastResult?.calibrationApplied ? "var(--status-good)" : "var(--status-warning)" }}>
+                                                    {forecastResult?.calibrationApplied ? "Applied" : "Pending"}
+                                                </strong>
                                             </div>
                                             <div>
                                                 <span>Accuracy</span>
-                                                <strong>{formatPercent(forecastResult?.calibrationAccuracyPercent ?? calibrationSummary?.calibrationAccuracy)}</strong>
+                                                <strong style={{ color: (forecastResult?.calibrationAccuracyPercent ?? calibrationSummary?.calibrationAccuracy) != null ? getStatusColor(forecastResult?.calibrationAccuracyPercent ?? calibrationSummary?.calibrationAccuracy ?? 0) : undefined }}>
+                                                    {formatPercent(forecastResult?.calibrationAccuracyPercent ?? calibrationSummary?.calibrationAccuracy)}
+                                                </strong>
                                             </div>
                                         </div>
 
                                         {forecastResult && (
-                                            <div className="forecast-info-note compact">
+                                            <div className={`forecast-info-note compact${forecastResult.shortageDays > 0 ? " forecast-info-note--danger" : forecastResult.overflowDays > 0 ? " forecast-info-note--warning" : ""}`}>
                                                 Overflow days: {forecastResult.overflowDays} | Shortage days: {forecastResult.shortageDays}. {forecastResult.recommendation}
                                             </div>
                                         )}

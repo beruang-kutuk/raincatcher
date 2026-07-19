@@ -692,7 +692,7 @@
 }
 
 .reports-pdf-cover {
-    background: linear-gradient(135deg, #b08a45, #8f6728);
+    background: linear-gradient(135deg, #4f46e5 0%, #8ea7ff 55%, #38bdf8 100%);
     color: #fff;
     border-radius: 18px;
     padding: 24px;
@@ -742,8 +742,8 @@
 }
 
 .reports-pdf-section-accent {
-    border-color: rgba(176, 138, 69, 0.28);
-    background: #fffbeb;
+    border-color: rgba(79, 70, 229, 0.22);
+    background: #f0f4ff;
 }
 
 .reports-pdf-metrics {

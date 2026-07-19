@@ -46,6 +46,7 @@ import {
     formatCurrentDateTime,
     getProjectionDays,
 } from "../../../services/time";
+import { getStatusColor, getRainfallStatusColor, RAINFALL_LEGEND } from "../../../utils/statusColors";
 
 type StatCardData = {
     title: string;
@@ -164,12 +165,6 @@ function DashboardRainfallChart({ data }: { data: Array<{ day: string; rain: num
     return (
         <div className="mini-chart-wrap">
             <svg viewBox={`0 0 ${svgW} ${svgH}`} className="mini-chart-svg" preserveAspectRatio="none">
-                <defs>
-                    <linearGradient id="dashBarGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--purple2)" />
-                        <stop offset="100%" stopColor="var(--purple)" />
-                    </linearGradient>
-                </defs>
                 {ticks.map((tick) => {
                     const y = svgH - pB - (tick / maxVal) * chartH;
                     return (
@@ -185,16 +180,33 @@ function DashboardRainfallChart({ data }: { data: Array<{ day: string; rain: num
                     const val = typeof item.rain === "number" ? item.rain : 0;
                     const barH = maxVal > 0 ? (val / maxVal) * chartH : 0;
                     const xCenter = pL + (index + 0.5) * barSlotW;
+                    const color = getRainfallStatusColor(val);
+                    const barTop = svgH - pB - Math.max(barH, 1);
                     return (
-                        <rect
-                            key={item.day}
-                            x={xCenter - barW / 2}
-                            y={svgH - pB - Math.max(barH, 1)}
-                            width={barW}
-                            height={Math.max(barH, 1)}
-                            rx="3"
-                            fill="url(#dashBarGrad)"
-                        />
+                        <g key={item.day}>
+                            <rect
+                                x={xCenter - barW / 2}
+                                y={barTop}
+                                width={barW}
+                                height={Math.max(barH, 1)}
+                                rx="3"
+                                fill={color}
+                                opacity="0.88"
+                            />
+                            {val > 0 && (
+                                <text
+                                    x={xCenter}
+                                    y={barTop - 4}
+                                    className="mini-chart-axis-text"
+                                    textAnchor="middle"
+                                    fill={color}
+                                    fontSize="9"
+                                    fontWeight="700"
+                                >
+                                    {val.toFixed(1)}
+                                </text>
+                            )}
+                        </g>
                     );
                 })}
                 <line x1={pL} y1={svgH - pB} x2={svgW - pR} y2={svgH - pB} className="mini-chart-axis-line" />
@@ -208,6 +220,14 @@ function DashboardRainfallChart({ data }: { data: Array<{ day: string; rain: num
                     );
                 })}
             </svg>
+            <div className="mini-chart-legend">
+                {RAINFALL_LEGEND.map((item) => (
+                    <div key={item.label} className="mini-chart-legend-item">
+                        <span className="mini-chart-legend-dot" style={{ background: item.color }} />
+                        <span>{item.label}</span>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }
@@ -224,15 +244,24 @@ function ForecastList({ data }: { data: Array<{ day: string; storage: number | n
 
     return (
         <div className="forecast-list">
-            {data.map((item) => (
-                <div key={item.day} className="forecast-row">
-                    <span>{item.day}</span>
-                    <div className="forecast-progress">
-                        <div className="forecast-progress-fill" style={{ width: `${item.storage ?? 0}%` }} />
+            {data.map((item) => {
+                const pct = item.storage ?? 0;
+                const color = getStatusColor(pct);
+                return (
+                    <div key={item.day} className="forecast-row">
+                        <span>{item.day}</span>
+                        <div className="forecast-progress">
+                            <div
+                                className="forecast-progress-fill"
+                                style={{ width: `${pct}%`, background: color }}
+                            />
+                        </div>
+                        <span style={{ color, fontWeight: 700 }}>
+                            {item.storage === null ? "--" : `${item.storage}%`}
+                        </span>
                     </div>
-                    <span>{item.storage === null ? "--" : `${item.storage}%`}</span>
-                </div>
-            ))}
+                );
+            })}
         </div>
     );
 }

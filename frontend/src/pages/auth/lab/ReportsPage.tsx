@@ -379,7 +379,7 @@ function statusColor(status: string): [number, number, number] {
     const normalized = status.toLowerCase();
     if (["normal", "good", "ready", "resolved"].includes(normalized)) return [22, 163, 74];
     if (["high", "critical"].includes(normalized)) return [220, 38, 38];
-    if (["pending", "review", "medium", "investigating"].includes(normalized)) return [176, 138, 69];
+    if (["pending", "review", "medium", "investigating"].includes(normalized)) return [245, 158, 11];
     return [71, 85, 105];
 }
 
@@ -388,7 +388,7 @@ function ensurePdfSpace(doc: jsPDF, y: number, requiredHeight: number, data: Rep
     if (y + requiredHeight <= pageHeight - 16) return y;
 
     doc.addPage();
-    doc.setFillColor(176, 138, 69);
+    doc.setFillColor(79, 70, 229);
     doc.rect(0, 0, doc.internal.pageSize.getWidth(), 16, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
@@ -409,7 +409,7 @@ function drawPdfTable(doc: jsPDF, data: ReportTemplateData, title: string, rows:
     doc.text(title, marginX, y);
     y += 6;
 
-    doc.setFillColor(176, 138, 69);
+    doc.setFillColor(79, 70, 229);
     doc.rect(marginX, y, tableWidth, 8, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(8);
@@ -454,9 +454,9 @@ function drawReportPdf(doc: jsPDF, data: ReportTemplateData) {
     const marginX = 14;
     let y = 0;
 
-    doc.setFillColor(176, 138, 69);
+    doc.setFillColor(79, 70, 229);
     doc.rect(0, 0, pageWidth, 40, "F");
-    doc.setFillColor(143, 103, 40);
+    doc.setFillColor(30, 27, 75);
     doc.circle(pageWidth - 24, 12, 10, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
@@ -491,8 +491,8 @@ function drawReportPdf(doc: jsPDF, data: ReportTemplateData) {
     });
 
     y += 48;
-    doc.setDrawColor(217, 190, 126);
-    doc.setFillColor(255, 251, 235);
+    doc.setDrawColor(142, 167, 255);
+    doc.setFillColor(224, 242, 254);
     doc.roundedRect(marginX, y, pageWidth - marginX * 2, 28, 3, 3, "FD");
     doc.setTextColor(11, 18, 32);
     doc.setFont("helvetica", "bold");
@@ -522,10 +522,10 @@ function drawReportPdf(doc: jsPDF, data: ReportTemplateData) {
             tagX = marginX;
             y += 9;
         }
-        doc.setFillColor(255, 251, 235);
-        doc.setDrawColor(217, 190, 126);
+        doc.setFillColor(224, 242, 254);
+        doc.setDrawColor(142, 167, 255);
         doc.roundedRect(tagX, y - 5, width, 7, 2, 2, "FD");
-        doc.setTextColor(146, 103, 32);
+        doc.setTextColor(79, 70, 229);
         doc.text(section, tagX + 4, y);
         tagX += width + 3;
     });
@@ -535,7 +535,7 @@ function drawReportPdf(doc: jsPDF, data: ReportTemplateData) {
     doc.setFillColor(248, 250, 252);
     doc.setDrawColor(203, 213, 225);
     doc.roundedRect(marginX, y, pageWidth - marginX * 2, 34, 3, 3, "FD");
-    doc.setFillColor(176, 138, 69);
+    doc.setFillColor(79, 70, 229);
     doc.rect(marginX, y, 1.5, 34, "F");
     doc.setTextColor(11, 18, 32);
     doc.setFont("helvetica", "bold");

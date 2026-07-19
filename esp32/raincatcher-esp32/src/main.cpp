@@ -21,9 +21,9 @@ const bool TEST_MODE = false;
 // Network / backend.
 const char *WIFI_SSID = "Raincatcher";
 const char *WIFI_PASSWORD = "0123456789";
-const char *BACKEND_HOST = "192.168.0.200";
+const char *BACKEND_HOST = "192.168.0.198";
 const uint16_t BACKEND_PORT = 8080;
-const char *BACKEND_TELEMETRY_URL = "http://192.168.0.200:8080/api/iot/telemetry";
+const char *BACKEND_TELEMETRY_URL = "http://192.168.0.198:8080/api/iot/telemetry";
 const char *DEVICE_ID = "RC-01";
 const char *TANK_ID = "TANK_A";
 const char *DEVICE_KEY = "raincatcher-device-key";
@@ -48,8 +48,8 @@ const float ADC_REFERENCE_VOLTAGE = 3.3;
 // pH averaging and 2-point calibration.
 const int PH_SAMPLE_COUNT = 20;
 const int PH_SAMPLE_DELAY_MS = 10;
-const float PH7_VOLTAGE = 1.496;
-const float PH4_VOLTAGE = 1.945;
+const float PH7_VOLTAGE = 3.219;
+const float PH4_VOLTAGE = 3.669;
 
 // Turbidity calibration.
 // Clear water observed 3.300 V.
@@ -195,6 +195,8 @@ void readAndUploadTelemetry()
 
   float phVoltage = readPhVoltageAveraged();
   float ph = calculatePh(phVoltage);
+
+  // float ph = 7.20;
 
   temperatureSensor.requestTemperatures();
   float waterTemperature = temperatureSensor.getTempCByIndex(0);

@@ -7,8 +7,8 @@
     overflow: hidden;
     pointer-events: none;
     background:
-        radial-gradient(circle at 22% 18%, rgba(215, 186, 131, 0.16), transparent 36%),
-        linear-gradient(135deg, #0f1020 0%, #1a1423 45%, #2a1d16 100%);
+        radial-gradient(circle at 22% 18%, rgba(79, 70, 229, 0.16), transparent 36%),
+        linear-gradient(135deg, #0f1020 0%, #0d1535 45%, #0a1929 100%);
 }
 
 /* ── Floating radial blobs ──────────────────────────────────────── */
@@ -30,8 +30,8 @@
     top: -25%;
     left: -15%;
     background:
-        radial-gradient(circle, rgba(215, 186, 131, 0.60), transparent 58%),
-        radial-gradient(circle at 65% 40%, rgba(139, 92, 246, 0.34), transparent 55%);
+        radial-gradient(circle, rgba(56, 189, 248, 0.50), transparent 58%),
+        radial-gradient(circle at 65% 40%, rgba(79, 70, 229, 0.40), transparent 55%);
     animation: auroraFloatOne 22s ease-in-out infinite alternate;
 }
 
@@ -39,8 +39,8 @@
     right: -20%;
     top: 10%;
     background:
-        radial-gradient(circle, rgba(174, 128, 72, 0.50), transparent 60%),
-        radial-gradient(circle at 30% 70%, rgba(109, 76, 255, 0.34), transparent 55%);
+        radial-gradient(circle, rgba(79, 70, 229, 0.45), transparent 60%),
+        radial-gradient(circle at 30% 70%, rgba(142, 167, 255, 0.40), transparent 55%);
     animation: auroraFloatTwo 28s ease-in-out infinite alternate;
 }
 
@@ -48,8 +48,8 @@
     left: 18%;
     bottom: -30%;
     background:
-        radial-gradient(circle, rgba(255, 226, 170, 0.32), transparent 55%),
-        radial-gradient(circle at 60% 50%, rgba(215, 186, 131, 0.34), transparent 60%);
+        radial-gradient(circle, rgba(142, 167, 255, 0.35), transparent 55%),
+        radial-gradient(circle at 60% 50%, rgba(56, 189, 248, 0.30), transparent 60%);
     animation: auroraFloatThree 34s ease-in-out infinite alternate;
 }
 
@@ -67,9 +67,9 @@
         linear-gradient(
             90deg,
             transparent 0%,
-            rgba(215, 186, 131, 0.20) 20%,
-            rgba(139, 92, 246, 0.24) 48%,
-            rgba(215, 186, 131, 0.20) 72%,
+            rgba(142, 167, 255, 0.20) 20%,
+            rgba(56, 189, 248, 0.24) 48%,
+            rgba(79, 70, 229, 0.20) 72%,
             transparent 100%
         );
     background-size: 240% 100%;
