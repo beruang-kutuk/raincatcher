@@ -48,8 +48,8 @@ const float ADC_REFERENCE_VOLTAGE = 3.3;
 // pH averaging and 2-point calibration.
 const int PH_SAMPLE_COUNT = 20;
 const int PH_SAMPLE_DELAY_MS = 10;
-const float PH7_VOLTAGE = 3.219;
-const float PH4_VOLTAGE = 3.669;
+const float PH7_VOLTAGE = 1.442;
+const float PH4_VOLTAGE = 1.866;
 
 // Turbidity calibration.
 // Clear water observed 3.300 V.
